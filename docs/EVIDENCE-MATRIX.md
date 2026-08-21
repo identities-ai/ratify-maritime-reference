@@ -63,13 +63,15 @@ agent runtime complete; Maritime deployment pending.
 
 - Date: 2026-08-21
 - Command: `uv run --python 3.12 pytest -q -W error`
-- Result after hostile-review remediation: 57 collected, 57 passed, 0 skipped,
+- Result after pre-deployment hardening: 59 collected, 59 passed, 0 skipped,
   0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
-- Agent image: `ratify-maritime-agent:stage4-closure`, built locally from the root
+- Agent image: `ratify-maritime-agent:predeploy`, built locally from the root
   `Dockerfile`
+- Receiver image: `ratify-maritime-receiver:predeploy`, built locally from
+  `apps/receiver/Dockerfile`
 - Container smoke: agent runtime import succeeded with
   `ratify-protocol==1.0.0a16`, `pqcrypto==0.3.4`, and
   `langchain-openai==1.6.0`; patched image contains `starlette==1.6.0`
@@ -83,4 +85,10 @@ agent runtime complete; Maritime deployment pending.
 - Secret-exclusion smoke: a sentinel `.env` was present in the checkout during
   the image build; `/app/.env` and the sentinel value were both absent from the
   resulting image
+- Deployment-image hardening: both images pin the verified Python base digest,
+  copy only runtime source, run as UID 10001, and define local health checks;
+  agent startup rejects reuse of its demo and receiver transport tokens
+- Image inspection: both image configurations select `appuser`; runtime probes
+  report UID 10001; neither image contains `tests/`, `docs/`, `reviews/`, or the
+  other runtime's entrypoint
 - Maritime deployment status: pending

@@ -52,6 +52,9 @@ or built into an image. Configure `RATIFY_DEMO_TOKEN` as a separate secret for
 the public console; it authenticates access to the demo but grants no Ratify
 authority.
 
+The agent and receiver images pin their Python base by digest, include only
+runtime source, run as an unprivileged user, and expose container health checks.
+
 ## Proof carrier
 
 The model-visible MCP tool contains only the six business arguments shown in
