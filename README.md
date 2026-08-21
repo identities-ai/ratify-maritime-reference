@@ -36,7 +36,8 @@ starts a long-lived server on the injected `PORT` and exposes:
 
 - `GET /health`: side-effect-free readiness
 - `POST /chat`: accepts only the enumerated `allow` and `over_limit` demo
-  scenarios
+  scenarios, requires `Authorization: Bearer <RATIFY_DEMO_TOKEN>`, and applies
+  an in-process request limit
 
 The default `RATIFY_MODEL_MODE=deterministic` path exercises the real LangChain
 and MCP integration without a paid model. Set `RATIFY_MODEL_MODE=production`
@@ -47,7 +48,9 @@ proof construction or receiver authorization.
 
 Copy `.env.example` only as a key-name reference. Private agent material and
 the receiver token must be configured through Maritime secrets, never committed
-or built into an image.
+or built into an image. Configure `RATIFY_DEMO_TOKEN` as a separate secret for
+the public console; it authenticates access to the demo but grants no Ratify
+authority.
 
 ## Proof carrier
 

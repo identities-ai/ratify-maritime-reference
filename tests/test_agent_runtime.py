@@ -3,10 +3,12 @@ import asyncio
 import socket
 import threading
 import time
+from pathlib import Path
 
 import pytest
 from ratify_protocol import encode_delegation_cert
 import uvicorn
+from starlette.testclient import TestClient
 
 from maritime_ratify import (
     CallerAuthenticator,
@@ -17,11 +19,14 @@ from maritime_ratify import (
 from maritime_ratify.agent_runtime import (
     AgentSettings,
     DeterministicToolModel,
+    create_agent_app,
     run_scenario,
     _model,
 )
 import maritime_ratify.agent_runtime as runtime_module
 from maritime_ratify.service import create_receiver_app
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _environment(monkeypatch, authority):
@@ -36,6 +41,7 @@ def _environment(monkeypatch, authority):
         "RATIFY_RECEIVER_MCP_URL": "https://receiver.example/mcp/",
         "RATIFY_PRESENTATION_URL": "https://receiver.example/presentations",
         "RATIFY_RECEIVER_TOKEN": "test-transport-token",
+        "RATIFY_DEMO_TOKEN": "test-demo-token",
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -128,6 +134,7 @@ async def _exercise_real_agent_boundary():
             receiver_mcp_url=f"http://127.0.0.1:{port}/mcp/",
             presentation_url=f"http://127.0.0.1:{port}/presentations",
             receiver_token="agent-token",
+            demo_token="demo-token",
             model_mode="deterministic",
             model_id=None,
         )
@@ -141,6 +148,58 @@ async def _exercise_real_agent_boundary():
     finally:
         server.should_exit = True
         thread.join(timeout=5)
+
+
+def test_agent_settings_repr_redacts_private_authority_and_tokens(monkeypatch):
+    authority = issue_authority(now=int(time.time()) - 1)
+    _environment(monkeypatch, authority)
+
+    rendered = repr(AgentSettings.from_environment())
+
+    assert "test-transport-token" not in rendered
+    assert "test-demo-token" not in rendered
+    assert base64.b64encode(authority.agent_private_key.ed25519).decode() not in rendered
+    assert "authority=" not in rendered
+
+
+def test_chat_requires_authentication_and_rejects_non_string_message(monkeypatch):
+    authority = issue_authority(now=int(time.time()) - 1)
+    _environment(monkeypatch, authority)
+    app = create_agent_app(AgentSettings.from_environment())
+
+    with TestClient(app) as client:
+        assert client.post("/chat", json={"message": "allow"}).status_code == 401
+        response = client.post(
+            "/chat",
+            headers={"Authorization": "Bearer test-demo-token"},
+            json={"message": ["allow"]},
+        )
+
+    assert response.status_code == 400
+    assert response.json() == {"response": "Invalid request."}
+
+
+def test_chat_rate_limits_authenticated_requests(monkeypatch):
+    authority = issue_authority(now=int(time.time()) - 1)
+    _environment(monkeypatch, authority)
+    monkeypatch.setattr(runtime_module, "_CHAT_RATE_LIMIT", 1)
+    app = create_agent_app(AgentSettings.from_environment())
+    headers = {"Authorization": "Bearer test-demo-token"}
+
+    with TestClient(app) as client:
+        first = client.post("/chat", headers=headers, json={"message": []})
+        second = client.post("/chat", headers=headers, json={"message": []})
+
+    assert first.status_code == 400
+    assert second.status_code == 429
+    assert second.json() == {"response": "Rate limit exceeded."}
+
+
+def test_agent_image_context_excludes_environment_secret_files():
+    patterns = set((_REPOSITORY_ROOT / ".dockerignore").read_text().splitlines())
+
+    assert ".env" in patterns
+    assert ".env.*" in patterns
 
 
 def _unused_port() -> int:

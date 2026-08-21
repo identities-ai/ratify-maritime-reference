@@ -1,7 +1,7 @@
 # Evidence matrix
 
-Status: Stage 2 receiver core and Stage 3 local MCP boundary complete;
-Maritime deployment pending.
+Status: Stage 2 receiver core, Stage 3 local MCP boundary, and Stage 4 local
+agent runtime complete; Maritime deployment pending.
 
 | Requirement | Evidence | Status |
 |---|---|---|
@@ -37,7 +37,10 @@ Maritime deployment pending.
 - LangChain: `langchain==1.3.15`
 - LangChain MCP adapters: `langchain-mcp-adapters==0.3.2`
 - Command: `uv run --python 3.12 pytest -W error`
-- Result: 48 collected, 48 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
+- Closure-review result: 46 collected, 46 passed, 0 skipped, 0 xfailed, 0
+  failed, 0 errors
+- Post-freeze permanent transport additions: 48 collected, 48 passed before
+  Stage 4 agent-runtime work
 - Proof carrier measurement: 17,966-byte canonical proof body; opaque reference header
 - Coverage: real in-memory ASGI Streamable HTTP discovery, challenge, upload,
   single-use reference resolution, verification, and handler execution
@@ -58,13 +61,14 @@ Maritime deployment pending.
 
 ## Stage 4 agent-runtime checkpoint
 
-- Date: 2026-08-20
+- Date: 2026-08-21
 - Command: `uv run --python 3.12 pytest -q -W error`
-- Result: 53 collected, 53 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
+- Result after hostile-review remediation: 57 collected, 57 passed, 0 skipped,
+  0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
-- Agent image: `ratify-maritime-agent:stage4-secure`, built locally from the root
+- Agent image: `ratify-maritime-agent:stage4-closure`, built locally from the root
   `Dockerfile`
 - Container smoke: agent runtime import succeeded with
   `ratify-protocol==1.0.0a16`, `pqcrypto==0.3.4`, and
@@ -73,4 +77,10 @@ Maritime deployment pending.
   security commit `a92bdc1`
 - Production model status: configuration is implemented and unit-tested; no
   provider call has been executed or claimed
+- Agent-boundary hardening: `.env` files are excluded from the build context;
+  settings representations redact private authority and tokens; `/chat`
+  requires a separate bearer credential and applies an in-process rate limit
+- Secret-exclusion smoke: a sentinel `.env` was present in the checkout during
+  the image build; `/app/.env` and the sentinel value were both absent from the
+  resulting image
 - Maritime deployment status: pending

@@ -1,7 +1,7 @@
 # Threat model
 
-Status: Stage 3 local MCP boundary. Maritime deployment threats remain
-incomplete.
+Status: Stage 4 local agent and MCP boundary. Maritime deployment threats
+remain incomplete.
 
 ## Protected assets
 
@@ -12,6 +12,7 @@ incomplete.
 - Uploaded proof bodies and opaque, single-use proof references.
 - The protected handler and its invocation state.
 - Redacted public evidence.
+- Agent private signing material and demo-access credentials.
 
 ## Security objective
 
@@ -53,6 +54,10 @@ not substitutes for receiver-side authorization.
 | Substitute an action between challenge, upload, and MCP dispatch | Deny; dispatch one immutable snapshot |
 | Use a disallowed Host value | Reject at the MCP transport boundary |
 | Raise from a verifier dependency | Stable denial without internal exception text |
+| Call the public demo endpoint without its bearer credential | Reject before agent execution |
+| Flood the authenticated demo endpoint | Bound requests with an in-process rate limit |
+| Supply an unsupported or malformed demo scenario | Reject before agent execution |
+| Render settings in diagnostics | Keep private authority and tokens out of their representation |
 
 The local boundary uses Streamable HTTP MCP. A bearer credential resolves to a
 receiver-owned caller ID. The proof body is uploaded separately, bounded before
@@ -61,11 +66,25 @@ reference to the authenticated caller and exact canonical action, expires it
 after 60 seconds, and consumes it once. The model-visible tool schema contains
 business arguments only.
 
+The Stage 4 agent container exposes a side-effect-free health route and an
+authenticated `/chat` route limited to the enumerated `allow` and `over_limit`
+scenarios. Its demo bearer credential controls endpoint access only. The agent
+still constructs a Ratify presentation for every selected action, and the
+receiver independently verifies that authority before its handler runs. The
+deterministic model is the free acceptance path; production mode selects an
+explicit OpenAI-compatible model without giving the model access to Ratify
+private keys, proofs, or receiver policy.
+
 ## Residual risks
 
-This stage has local network transport and a receiver container, but no Maritime
-deployment, durable shared state, ingress body limit, rate limiting, production
-handler, or complete agent container. Those properties must not be claimed.
+This stage has local network transport plus receiver and agent containers, but
+no Maritime deployment, durable shared state, ingress body limit, distributed
+rate limiting, or production handler. Those properties must not be claimed.
+
+Agent keys and transport credentials are supplied at runtime and excluded from
+the Docker build context. The in-process `/chat` limiter is suitable only for
+the bounded public demonstration; it resets on restart and is not shared across
+replicas. Production exposure still requires ingress-level rate and body limits.
 
 Starlette buffers an authenticated upload before the application checks its
 size. The deployed ingress must enforce a body limit. MCP discovery is public,
