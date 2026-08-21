@@ -1,7 +1,10 @@
+import base64
 import json
 import stat
 
+import pytest
 from ratify_protocol import decode_delegation_cert, verify_delegation_signature
+from ratify_protocol import generate_human_root
 
 from maritime_ratify.deployment_issuance import (
     DEMO_VALIDITY_SECONDS,
@@ -82,3 +85,43 @@ def test_issuance_refuses_to_overwrite_an_existing_directory(tmp_path):
         pass
     else:
         raise AssertionError("issuance must not overwrite an existing directory")
+
+
+@pytest.mark.parametrize("tamper", [
+    "foreign_root_private", "short_root_public", "short_agent_public",
+    "swapped_root_id", "swapped_agent_id", "short_root_private",
+    "missing_root_private", "invalid_root_private",
+])
+def test_renewal_rejects_inconsistent_principal_without_output(tmp_path, tamper):
+    initial = tmp_path / "initial"
+    renewal = tmp_path / "renewal"
+    issue_deployment(initial, now=1_800_000_000)
+    path = initial / "principal.json"
+    principal = json.loads(path.read_text())
+
+    if tamper == "foreign_root_private":
+        _, foreign = generate_human_root()
+        principal["root_private_key"] = {
+            "ed25519": base64.b64encode(foreign.ed25519).decode(),
+            "ml_dsa_65": base64.b64encode(foreign.ml_dsa_65).decode(),
+        }
+    elif tamper == "short_root_public":
+        principal["root_public_key"]["ed25519"] = base64.b64encode(b"bad").decode()
+    elif tamper == "short_agent_public":
+        principal["agent_public_key"]["ed25519"] = base64.b64encode(b"bad").decode()
+    elif tamper == "swapped_root_id":
+        principal["root_id"] = "root:tampered"
+    elif tamper == "swapped_agent_id":
+        principal["agent_id"] = "agent:tampered"
+    elif tamper == "short_root_private":
+        principal["root_private_key"]["ed25519"] = base64.b64encode(b"bad").decode()
+    elif tamper == "missing_root_private":
+        principal.pop("root_private_key")
+    else:
+        principal["root_private_key"]["ed25519"] = "not-base64"
+    path.write_text(json.dumps(principal))
+
+    with pytest.raises(RuntimeError, match="principal artifact"):
+        renew_deployment(path, renewal, now=1_800_432_000)
+
+    assert not renewal.exists()

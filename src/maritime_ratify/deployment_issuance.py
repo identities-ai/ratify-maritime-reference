@@ -13,9 +13,13 @@ import time
 from ratify_protocol import (
     HybridPrivateKey,
     HybridPublicKey,
+    derive_id,
     encode_delegation_cert,
     generate_agent,
     generate_human_root,
+    sign_both,
+    verify_both,
+    verify_delegation_signature_e,
 )
 
 from .authority import issue_bounded_delegation
@@ -77,16 +81,31 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
 
 def renew_deployment(principal_path: Path, output: Path, *, now: int | None = None) -> None:
     issued_at = int(time.time()) if now is None else now
-    principal = json.loads(principal_path.read_text())
-    delegation = issue_bounded_delegation(
-        root_id=principal["root_id"],
-        root_public_key=_decode_public(principal["root_public_key"]),
-        root_private_key=_decode_private(principal["root_private_key"]),
-        agent_id=principal["agent_id"],
-        agent_public_key=_decode_public(principal["agent_public_key"]),
-        issued_at=issued_at,
-        expires_at=issued_at + DEMO_VALIDITY_SECONDS,
-    )
+    principal = _load_principal(principal_path)
+    try:
+        root_public = _decode_public(principal["root_public_key"])
+        root_private = _decode_private(principal["root_private_key"])
+        agent_public = _decode_public(principal["agent_public_key"])
+        agent_private = _decode_private(principal["agent_private_key"])
+        delegation = issue_bounded_delegation(
+            root_id=principal["root_id"],
+            root_public_key=root_public,
+            root_private_key=root_private,
+            agent_id=principal["agent_id"],
+            agent_public_key=agent_public,
+            issued_at=issued_at,
+            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
+        )
+    except (KeyError, TypeError, ValueError):
+        raise RuntimeError("invalid principal artifact") from None
+    probe = b"ratify-maritime-principal-artifact-check"
+    if (
+        derive_id(root_public) != principal["root_id"]
+        or derive_id(agent_public) != principal["agent_id"]
+        or verify_both(probe, sign_both(probe, agent_private), agent_public) is not None
+        or verify_delegation_signature_e(delegation) is not None
+    ):
+        raise RuntimeError("principal artifact is inconsistent")
     _prepare_output(output)
     wire = encode_delegation_cert(delegation)
     _write_private_env(output / "renewal.env", {"RATIFY_DELEGATION": wire})
@@ -143,14 +162,44 @@ def _private(value: HybridPrivateKey) -> dict[str, str]:
 
 
 def _decode_public(value: dict[str, str]) -> HybridPublicKey:
-    return HybridPublicKey(
+    public = HybridPublicKey(
         ed25519=base64.b64decode(value["ed25519"], validate=True),
         ml_dsa_65=base64.b64decode(value["ml_dsa_65"], validate=True),
     )
+    if len(public.ed25519) != 32 or len(public.ml_dsa_65) != 1952:
+        raise ValueError("invalid public key length")
+    return public
 
 
 def _decode_private(value: dict[str, str]) -> HybridPrivateKey:
-    return HybridPrivateKey(
+    private = HybridPrivateKey(
         ed25519=base64.b64decode(value["ed25519"], validate=True),
         ml_dsa_65=base64.b64decode(value["ml_dsa_65"], validate=True),
     )
+    if len(private.ed25519) != 32 or len(private.ml_dsa_65) != 4032:
+        raise ValueError("invalid private key length")
+    return private
+
+
+def _load_principal(path: Path) -> dict:
+    try:
+        principal = json.loads(path.read_text())
+        if type(principal) is not dict or set(principal) != {
+            "root_id", "root_public_key", "root_private_key",
+            "agent_id", "agent_public_key", "agent_private_key",
+        }:
+            raise ValueError
+        for name in ("root_id", "agent_id"):
+            if type(principal[name]) is not str:
+                raise ValueError
+        for name in (
+            "root_public_key", "root_private_key",
+            "agent_public_key", "agent_private_key",
+        ):
+            if type(principal[name]) is not dict or set(principal[name]) != {
+                "ed25519", "ml_dsa_65"
+            } or not all(type(value) is str for value in principal[name].values()):
+                raise ValueError
+        return principal
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        raise RuntimeError("invalid principal artifact") from None
