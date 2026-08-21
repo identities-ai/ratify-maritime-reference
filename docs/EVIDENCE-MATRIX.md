@@ -64,11 +64,13 @@ Maritime deployment pending.
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
-- Agent image: `ratify-maritime-agent:stage4`, built locally from the root
+- Agent image: `ratify-maritime-agent:stage4-secure`, built locally from the root
   `Dockerfile`
 - Container smoke: agent runtime import succeeded with
   `ratify-protocol==1.0.0a16`, `pqcrypto==0.3.4`, and
-  `langchain-openai==1.6.0`
+  `langchain-openai==1.6.0`; patched image contains `starlette==1.6.0`
+- Dependency security: GitHub Dependabot reported zero open alerts after
+  security commit `a92bdc1`
 - Production model status: configuration is implemented and unit-tested; no
   provider call has been executed or claimed
 - Maritime deployment status: pending
