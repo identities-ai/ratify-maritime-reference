@@ -73,11 +73,18 @@ class AuthorityInterceptor:
 
 
 class MCPChallengeProvider:
-    def __init__(self, client: MultiServerMCPClient, server_name: str) -> None:
+    def __init__(self, client: MultiServerMCPClient | None, server_name: str) -> None:
         self._client = client
         self._server_name = server_name
 
+    def bind_client(self, client: MultiServerMCPClient) -> None:
+        if self._client is not None:
+            raise RuntimeError("MCP challenge provider already bound")
+        self._client = client
+
     async def __call__(self, arguments: dict[str, Any]) -> ChallengeMaterial:
+        if self._client is None:
+            raise RuntimeError("MCP challenge provider is not bound")
         async with self._client.session(self._server_name) as session:
             result = await session.call_tool("issue_work_order_challenge", arguments)
         structured = result.structuredContent or {}

@@ -6,11 +6,13 @@ deployed Ratify-verifying Streamable HTTP MCP receiver.
 
 ![Maritime and Ratify Phase 1 authority flow](docs/architecture/phase-1-flow.svg)
 
-The frozen Stage 2 receiver core and Stage 3 transport boundary now cover exact
+The frozen Stage 2 receiver core and Stage 3 transport boundary cover exact
 allow, signed bounds, receiver-owned time and policy, revocation, replay,
 hostile concurrency, caller ownership, strict proof upload, duplicate and
 oversized carriers, real Streamable HTTP MCP discovery and execution, and the
-LangChain authority-interceptor seam. Maritime deployment and the public demo
+LangChain authority-interceptor seam. Stage 4 now includes a deterministic
+LangChain agent runtime and an optional production-model configuration; image
+verification now passes locally, while Maritime deployment and the public demo
 console remain pending.
 
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
@@ -21,6 +23,31 @@ Run the current gate:
 uv sync --python 3.12
 uv run --python 3.12 pytest
 ```
+
+The gate requires no model API and includes a real TCP Streamable HTTP flow
+through LangChain, the proof interceptor, and the receiver. It holds the agent
+identity constant while allowing an in-bounds request and denying an
+over-limit request.
+
+## Maritime agent runtime
+
+The root `Dockerfile` is the Maritime GitHub-source build for the agent. It
+starts a long-lived server on the injected `PORT` and exposes:
+
+- `GET /health`: side-effect-free readiness
+- `POST /chat`: accepts only the enumerated `allow` and `over_limit` demo
+  scenarios
+
+The default `RATIFY_MODEL_MODE=deterministic` path exercises the real LangChain
+and MCP integration without a paid model. Set `RATIFY_MODEL_MODE=production`
+and an explicit `RATIFY_MODEL_ID` to use LangChain's OpenAI-compatible
+integration. On Maritime, `OPENAI_API_KEY` and `OPENAI_BASE_URL` can be injected
+for its metered model proxy; a provider credential is never used for Ratify
+proof construction or receiver authorization.
+
+Copy `.env.example` only as a key-name reference. Private agent material and
+the receiver token must be configured through Maritime secrets, never committed
+or built into an image.
 
 ## Proof carrier
 
@@ -39,7 +66,7 @@ The frozen build requirements are in
 
 Planned deployment:
 
-- `apps/agent/`: LangChain agent in one Maritime isolated runtime
+- `apps/agent/`: LangChain agent runtime built by the root `Dockerfile`
 - `apps/receiver/`: Ratify-verifying MCP receiver in a second isolated runtime
 - `apps/demo-console/`: standalone Ratify-branded UI deployed independently at
   `labs.ratifyprotocol.com/maritime`
