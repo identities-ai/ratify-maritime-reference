@@ -1,0 +1,26 @@
+flowchart LR
+    P[Principal\nissues bounded authority]
+    subgraph M[Maritime isolated agent runtime]
+      L[LangChain agent\nbusiness arguments only]
+      I[Ratify interceptor\nchallenge + presentation]
+      L -->|selected work-order tool| I
+    end
+    subgraph R[Separately configured receiver runtime]
+      C[Challenge endpoint]
+      U[Bounded proof upload]
+      O[One-time proof registry]
+      MCP[Streamable HTTP MCP tool]
+      V[Ratify verification\nplus receiver policy]
+      H[Protected handler]
+      U --> O
+      MCP -->|atomically resolve reference| O
+      O --> V -->|ALLOW only| H
+    end
+    P -->|signed delegation| I
+    I -->|1. request challenge| C
+    C -->|2. exact-operation challenge| I
+    I -->|3. proof in bounded body| U
+    U -->|4. opaque single-use reference| I
+    I -->|5. business action + short reference| MCP
+    V -.->|DENY: stable reason, handler unchanged| MCP
+

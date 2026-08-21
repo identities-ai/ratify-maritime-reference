@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ratify-maritime-reference"
+version = "0.1.0"
+description = "Authority-aware agent reference for Maritime"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "httpx>=0.28,<1",
+  "langchain>=1,<2",
+  "langchain-mcp-adapters>=0.3,<1",
+  # langchain-mcp-adapters currently targets the maintained MCP v1 line.
+  "mcp>=1.28,<2",
+  # alpha.16 permits pqcrypto>=0.3.4, but pqcrypto 1.0 removed the API it uses.
+  "pqcrypto==0.3.4",
+  "ratify-protocol==1.0.0a16",
+  "starlette>=0.47,<1",
+  "uvicorn>=0.35,<1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==8.4.1",
+]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/maritime_ratify"]
