@@ -33,6 +33,10 @@ not substitutes for receiver-side authorization.
   protected by receiver-owned locks.
 - Phase 1 agent and receiver runtimes are separately configured but operated by
   Ratify; they are not separate legal organizations.
+- Deployment issuance runs outside Maritime. Its principal artifact retains the
+  issuer key for renewal and must remain under principal control; only public
+  trust material enters the receiver and only delegated agent material enters
+  the agent runtime.
 
 ## Implemented attack surface
 
@@ -88,6 +92,10 @@ runtime source, run as an unprivileged fixed UID, and define a local health
 check. The in-process `/chat` limiter is suitable only for the bounded public
 demonstration; it resets on restart and is not shared across replicas.
 Production exposure still requires ingress-level rate and body limits.
+
+Demo delegations expire after seven days and are renewed on day five from the
+principal-controlled artifact. Renewal preserves the issuer, subject, and
+authority bounds and replaces only the signed delegation in the agent runtime.
 
 Starlette buffers an authenticated upload before the application checks its
 size. The deployed ingress must enforce a body limit. MCP discovery is public,

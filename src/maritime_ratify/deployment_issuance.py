@@ -1,0 +1,156 @@
+"""Offline issuance artifacts for the Maritime demonstration."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import secrets
+import time
+
+from ratify_protocol import (
+    HybridPrivateKey,
+    HybridPublicKey,
+    encode_delegation_cert,
+    generate_agent,
+    generate_human_root,
+)
+
+from .authority import issue_bounded_delegation
+from .profile import (
+    DEFAULT_CATEGORY,
+    DEFAULT_CURRENCY,
+    DEFAULT_MAX_AMOUNT_MINOR,
+    DEFAULT_RESOURCE,
+    VERIFIER_ID,
+    WORK_ORDER_SCOPE,
+)
+
+DEMO_VALIDITY_SECONDS = 7 * 24 * 60 * 60
+
+
+def issue_deployment(output: Path, *, now: int | None = None) -> None:
+    issued_at = int(time.time()) if now is None else now
+    root, root_private = generate_human_root()
+    agent, agent_private = generate_agent("Maritime Work Order Agent", "custom")
+    delegation = issue_bounded_delegation(
+        root_id=root.id,
+        root_public_key=root.public_key,
+        root_private_key=root_private,
+        agent_id=agent.id,
+        agent_public_key=agent.public_key,
+        issued_at=issued_at,
+        expires_at=issued_at + DEMO_VALIDITY_SECONDS,
+    )
+    receiver_token = secrets.token_urlsafe(32)
+    demo_token = secrets.token_urlsafe(32)
+    _prepare_output(output)
+    _write_private_json(output / "principal.json", {
+        "root_id": root.id,
+        "root_public_key": _public(root.public_key),
+        "root_private_key": _private(root_private),
+        "agent_id": agent.id,
+        "agent_public_key": _public(agent.public_key),
+        "agent_private_key": _private(agent_private),
+    })
+    _write_private_env(output / "receiver.env", {
+        "RATIFY_ROOT_ID": root.id,
+        "RATIFY_ROOT_ED25519_B64": _b64(root.public_key.ed25519),
+        "RATIFY_ROOT_ML_DSA_65_B64": _b64(root.public_key.ml_dsa_65),
+        "RATIFY_AGENT_ID": agent.id,
+        "RATIFY_CALLER_ID": "maritime-demo-agent",
+        "RATIFY_CALLER_TOKEN": receiver_token,
+    })
+    wire = encode_delegation_cert(delegation)
+    _write_private_env(output / "agent.env", {
+        "RATIFY_DELEGATION": wire,
+        "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(agent_private.ed25519),
+        "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(agent_private.ml_dsa_65),
+        "RATIFY_RECEIVER_TOKEN": receiver_token,
+        "RATIFY_DEMO_TOKEN": demo_token,
+        "RATIFY_MODEL_MODE": "deterministic",
+    })
+    _write_manifest(output / "manifest.json", delegation, wire)
+
+
+def renew_deployment(principal_path: Path, output: Path, *, now: int | None = None) -> None:
+    issued_at = int(time.time()) if now is None else now
+    principal = json.loads(principal_path.read_text())
+    delegation = issue_bounded_delegation(
+        root_id=principal["root_id"],
+        root_public_key=_decode_public(principal["root_public_key"]),
+        root_private_key=_decode_private(principal["root_private_key"]),
+        agent_id=principal["agent_id"],
+        agent_public_key=_decode_public(principal["agent_public_key"]),
+        issued_at=issued_at,
+        expires_at=issued_at + DEMO_VALIDITY_SECONDS,
+    )
+    _prepare_output(output)
+    wire = encode_delegation_cert(delegation)
+    _write_private_env(output / "renewal.env", {"RATIFY_DELEGATION": wire})
+    _write_manifest(output / "manifest.json", delegation, wire)
+
+
+def _prepare_output(output: Path) -> None:
+    output.mkdir(mode=0o700, parents=False, exist_ok=False)
+
+
+def _write_private_json(path: Path, value: dict) -> None:
+    _write_private(path, json.dumps(value, sort_keys=True, indent=2) + "\n")
+
+
+def _write_private_env(path: Path, values: dict[str, str]) -> None:
+    _write_private(path, "".join(
+        f"{key}={value}\n" for key, value in values.items()
+    ))
+
+
+def _write_private(path: Path, content: str) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        stream.write(content)
+
+
+def _write_manifest(path: Path, delegation, wire: str) -> None:
+    path.write_text(json.dumps({
+        "agent_id": delegation.subject_id,
+        "audience": VERIFIER_ID,
+        "category": DEFAULT_CATEGORY,
+        "cert_id": delegation.cert_id,
+        "currency": DEFAULT_CURRENCY,
+        "delegation_sha256": hashlib.sha256(wire.encode()).hexdigest(),
+        "expires_at": delegation.expires_at,
+        "issued_at": delegation.issued_at,
+        "max_amount_minor": DEFAULT_MAX_AMOUNT_MINOR,
+        "resource": DEFAULT_RESOURCE,
+        "scope": WORK_ORDER_SCOPE,
+    }, sort_keys=True, indent=2) + "\n")
+    os.chmod(path, 0o644)
+
+
+def _b64(value: bytes) -> str:
+    return base64.b64encode(value).decode()
+
+
+def _public(value: HybridPublicKey) -> dict[str, str]:
+    return {"ed25519": _b64(value.ed25519), "ml_dsa_65": _b64(value.ml_dsa_65)}
+
+
+def _private(value: HybridPrivateKey) -> dict[str, str]:
+    return {"ed25519": _b64(value.ed25519), "ml_dsa_65": _b64(value.ml_dsa_65)}
+
+
+def _decode_public(value: dict[str, str]) -> HybridPublicKey:
+    return HybridPublicKey(
+        ed25519=base64.b64decode(value["ed25519"], validate=True),
+        ml_dsa_65=base64.b64decode(value["ml_dsa_65"], validate=True),
+    )
+
+
+def _decode_private(value: dict[str, str]) -> HybridPrivateKey:
+    return HybridPrivateKey(
+        ed25519=base64.b64decode(value["ed25519"], validate=True),
+        ml_dsa_65=base64.b64decode(value["ml_dsa_65"], validate=True),
+    )

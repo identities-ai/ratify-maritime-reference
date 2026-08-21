@@ -55,6 +55,31 @@ authority.
 The agent and receiver images pin their Python base by digest, include only
 runtime source, run as an unprivileged user, and expose container health checks.
 
+## Deployment authority issuance
+
+Create deployment material outside the repository on a trusted principal
+machine. The command writes separate principal, receiver, agent, and
+secret-free manifest artifacts with restrictive permissions:
+
+```bash
+uv run --python 3.12 python scripts/issue_demo_authority.py issue \
+  /secure/path/maritime-demo-issuance
+```
+
+The delegation is valid for seven days. Renew it on day five without changing
+the configured root or agent identity:
+
+```bash
+uv run --python 3.12 python scripts/issue_demo_authority.py renew \
+  /secure/path/maritime-demo-issuance/principal.json \
+  /secure/path/maritime-demo-renewal
+```
+
+Only `receiver.env` is imported into the receiver runtime and only `agent.env`
+is imported into the agent runtime. `principal.json` must remain outside
+Maritime and must never be committed, uploaded, or copied into either runtime.
+Renewal emits only a replacement `RATIFY_DELEGATION` and a new public manifest.
+
 ## Proof carrier
 
 The model-visible MCP tool contains only the six business arguments shown in

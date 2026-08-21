@@ -63,7 +63,7 @@ agent runtime complete; Maritime deployment pending.
 
 - Date: 2026-08-21
 - Command: `uv run --python 3.12 pytest -q -W error`
-- Result after pre-deployment hardening: 59 collected, 59 passed, 0 skipped,
+- Result after deployment-issuance tooling: 62 collected, 62 passed, 0 skipped,
   0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
@@ -91,4 +91,8 @@ agent runtime complete; Maritime deployment pending.
 - Image inspection: both image configurations select `appuser`; runtime probes
   report UID 10001; neither image contains `tests/`, `docs/`, `reviews/`, or the
   other runtime's entrypoint
+- Issuance gate: offline principal, receiver, agent, and public-manifest
+  artifacts are separated; private files use mode 0600; seven-day renewal keeps
+  the same issuer, subject, and constraints while producing a valid new
+  signature
 - Maritime deployment status: pending
