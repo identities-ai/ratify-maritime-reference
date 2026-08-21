@@ -17,10 +17,7 @@ flowchart LR
       O --> V -->|ALLOW only| H
     end
     P -->|signed delegation| I
-    I -->|1. request challenge| C
-    C -->|2. exact-operation challenge| I
-    I -->|3. proof in bounded body| U
-    U -->|4. opaque single-use reference| I
-    I -->|5. business action + short reference| MCP
+    I -->|1. BIND: exact-action challenge| C
+    I -->|2. PRESENT: proof body; receive opaque reference| U
+    I -->|3. CALL: business action + short reference| MCP
     V -.->|DENY: stable reason, handler unchanged| MCP
-
