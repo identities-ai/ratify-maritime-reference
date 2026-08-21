@@ -20,37 +20,37 @@
   <text x="180" y="330" class="p" text-anchor="middle">Site: Seattle warehouse</text><text x="180" y="355" class="p" text-anchor="middle">Category: electrical</text><text x="180" y="380" class="p" text-anchor="middle">Limit: 500 USD</text>
   <rect x="91" y="455" width="178" height="42" rx="21" class="pill"/><text x="118" y="482" class="small">Issuer key stays here</text>
 
-  <rect x="340" y="155" width="465" height="570" rx="22" class="zone"/>
+  <rect x="340" y="155" width="420" height="570" rx="22" class="zone"/>
   <text x="368" y="195" class="zoneTitle">MARITIME ISOLATED AGENT RUNTIME</text>
-  <rect x="375" y="245" width="395" height="125" rx="16" class="box"/>
+  <rect x="375" y="245" width="350" height="125" rx="16" class="box"/>
   <text x="405" y="290" class="h1">LangChain agent</text><text x="405" y="325" class="p">Model sees business arguments only</text>
-  <rect x="375" y="455" width="395" height="175" rx="16" class="box accent"/>
+  <rect x="375" y="455" width="350" height="175" rx="16" class="box accent"/>
   <text x="405" y="500" class="h1">Ratify MCP interceptor</text>
-  <text x="405" y="535" class="p">Canonicalizes the selected action</text><text x="405" y="560" class="p">Signs challenge outside model context</text><text x="405" y="585" class="p">Carries only a short reference on the tool call</text>
+  <text x="405" y="535" class="p">Canonicalizes the selected action</text><text x="405" y="560" class="p">Signs challenge outside model context</text><text x="405" y="585" class="p">Adds only a short tool-call reference</text>
   <path d="M590 370 L590 447" class="line"/><text x="610" y="415" class="step">selected tool</text>
 
-  <rect x="900" y="155" width="645" height="570" rx="22" class="zone"/>
-  <text x="928" y="195" class="zoneTitle">SEPARATELY CONFIGURED RECEIVER RUNTIME</text>
-  <rect x="955" y="225" width="300" height="90" rx="14" class="box"/><text x="983" y="262" class="h1">Challenge endpoint</text><text x="983" y="290" class="p">Binds caller + exact action</text>
-  <rect x="955" y="365" width="300" height="90" rx="14" class="box"/><text x="983" y="402" class="h1">Bounded proof upload</text><text x="983" y="430" class="p">Proof travels in the body</text>
-  <rect x="955" y="505" width="300" height="90" rx="14" class="box"/><text x="983" y="542" class="h1">MCP work-order tool</text><text x="983" y="570" class="p">Business action + opaque ref</text>
-  <rect x="1290" y="365" width="220" height="90" rx="14" class="box"/><text x="1318" y="402" class="h1">One-time registry</text><text x="1318" y="430" class="p">Caller + action + TTL</text>
-  <rect x="1290" y="505" width="220" height="90" rx="14" class="box verify"/><text x="1318" y="542" class="h1">Ratify + policy</text><text x="1318" y="570" class="p">Verify one snapshot</text>
-  <rect x="1290" y="630" width="220" height="72" rx="14" class="handler"/><text x="1318" y="660" class="h1 white">Protected handler</text><text x="1318" y="684" class="p white">ALLOW only</text>
+  <rect x="920" y="155" width="625" height="570" rx="22" class="zone"/>
+  <text x="948" y="195" class="zoneTitle">SEPARATELY CONFIGURED RECEIVER RUNTIME</text>
+  <rect x="975" y="225" width="290" height="90" rx="14" class="box"/><text x="1003" y="262" class="h1">Challenge endpoint</text><text x="1003" y="290" class="p">Binds caller + exact action</text>
+  <rect x="975" y="365" width="290" height="90" rx="14" class="box"/><text x="1003" y="402" class="h1">Bounded proof upload</text><text x="1003" y="430" class="p">Proof travels in the body</text>
+  <rect x="975" y="505" width="290" height="90" rx="14" class="box"/><text x="1003" y="542" class="h1">MCP work-order tool</text><text x="1003" y="570" class="p">Business action + opaque ref</text>
+  <rect x="1300" y="365" width="210" height="90" rx="14" class="box"/><text x="1328" y="402" class="h1">One-time registry</text><text x="1328" y="430" class="p">Caller + action + TTL</text>
+  <rect x="1300" y="505" width="210" height="90" rx="14" class="box verify"/><text x="1328" y="542" class="h1">Ratify + policy</text><text x="1328" y="570" class="p">Verify one snapshot</text>
+  <rect x="1300" y="630" width="210" height="72" rx="14" class="handler"/><text x="1328" y="660" class="h1 white">Protected handler</text><text x="1328" y="684" class="p white">ALLOW only</text>
 
-  <path d="M770 490 C820 490 865 270 947 270" class="line"/>
-  <circle cx="825" cy="420" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="820" y="426" class="step">1</text><text x="850" y="425" class="step">BIND</text>
-  <path d="M770 540 C825 540 870 410 947 410" class="line"/>
-  <circle cx="825" cy="505" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="820" y="511" class="step">2</text><text x="850" y="510" class="step">PRESENT</text>
-  <path d="M770 585 C825 585 870 550 947 550" class="line"/>
-  <circle cx="825" cy="575" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="820" y="581" class="step">3</text><text x="850" y="580" class="step">CALL</text>
+  <path d="M725 490 C780 490 855 270 967 270" class="line"/>
+  <circle cx="790" cy="420" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="785" y="426" class="step">1</text><text x="815" y="425" class="step">BIND</text>
+  <path d="M725 540 C785 540 860 410 967 410" class="line"/>
+  <circle cx="790" cy="505" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="785" y="511" class="step">2</text><text x="815" y="510" class="step">PRESENT</text>
+  <path d="M725 585 C785 585 860 550 967 550" class="line"/>
+  <circle cx="790" cy="575" r="16" fill="#fff" stroke="#566176" stroke-width="2"/><text x="785" y="581" class="step">3</text><text x="815" y="580" class="step">CALL</text>
 
-  <path d="M1255 410 L1282 410" class="line"/>
-  <path d="M1255 550 C1275 550 1275 455 1290 455" class="line"/>
-  <path d="M1400 455 L1400 497" class="line"/>
-  <path d="M1400 595 L1400 622" class="allowLine"/>
-  <path d="M1310 595 C1295 625 1275 625 1255 590" class="denyLine"/>
-  <text x="955" y="685" class="step">DENY: stable reason • handler unchanged</text>
+  <path d="M1265 410 L1292 410" class="line"/>
+  <path d="M1265 550 L1280 550 L1280 410 L1292 410" class="line"/>
+  <path d="M1405 455 L1405 497" class="line"/>
+  <path d="M1405 595 L1405 622" class="allowLine"/>
+  <path d="M1320 595 C1305 625 1285 625 1265 590" class="denyLine"/>
+  <text x="975" y="685" class="step">DENY: stable reason • handler unchanged</text>
 
   <rect x="70" y="810" width="18" height="18" rx="4" class="accent"/><text x="100" y="824" class="small">Ratify authority construction</text>
   <rect x="350" y="810" width="18" height="18" rx="4" class="verify"/><text x="380" y="824" class="small">Receiver-owned authorization</text>
