@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 import uuid
 
@@ -37,7 +37,7 @@ class AuthorityFixture:
     root_id: str
     root_public_key: HybridPublicKey
     agent_id: str
-    agent_private_key: HybridPrivateKey
+    agent_private_key: HybridPrivateKey = field(repr=False)
     delegation: DelegationCert
 
     def present(self, *, challenge: bytes, session_context: bytes, now: int) -> ProofBundle:

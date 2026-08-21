@@ -154,12 +154,23 @@ def test_agent_settings_repr_redacts_private_authority_and_tokens(monkeypatch):
     authority = issue_authority(now=int(time.time()) - 1)
     _environment(monkeypatch, authority)
 
-    rendered = repr(AgentSettings.from_environment())
+    settings = AgentSettings.from_environment()
+    rendered = repr(settings)
 
     assert "test-transport-token" not in rendered
     assert "test-demo-token" not in rendered
     assert base64.b64encode(authority.agent_private_key.ed25519).decode() not in rendered
     assert "authority=" not in rendered
+    assert repr(authority.agent_private_key.ed25519) not in repr(settings.authority)
+
+
+def test_agent_settings_reject_reused_demo_and_receiver_token(monkeypatch):
+    authority = issue_authority(now=int(time.time()) - 1)
+    _environment(monkeypatch, authority)
+    monkeypatch.setenv("RATIFY_DEMO_TOKEN", "test-transport-token")
+
+    with pytest.raises(RuntimeError, match="must differ"):
+        AgentSettings.from_environment()
 
 
 def test_chat_requires_authentication_and_rejects_non_string_message(monkeypatch):
@@ -200,6 +211,20 @@ def test_agent_image_context_excludes_environment_secret_files():
 
     assert ".env" in patterns
     assert ".env.*" in patterns
+
+
+def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
+    dockerfiles = [
+        _REPOSITORY_ROOT / "Dockerfile",
+        _REPOSITORY_ROOT / "apps/receiver/Dockerfile",
+    ]
+
+    for dockerfile in dockerfiles:
+        content = dockerfile.read_text()
+        assert "python:3.12-slim@sha256:" in content
+        assert "COPY . /app" not in content
+        assert "USER appuser" in content
+        assert "HEALTHCHECK" in content
 
 
 def _unused_port() -> int:

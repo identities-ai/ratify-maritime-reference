@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from collections import deque
+import hmac
 import json
 import os
 import threading
@@ -69,6 +70,10 @@ class AgentSettings:
         model_id = os.environ.get("RATIFY_MODEL_ID")
         if mode == "production" and not model_id:
             raise RuntimeError("missing required environment setting: RATIFY_MODEL_ID")
+        receiver_token = _required("RATIFY_RECEIVER_TOKEN")
+        demo_token = _required("RATIFY_DEMO_TOKEN")
+        if hmac.compare_digest(receiver_token, demo_token):
+            raise RuntimeError("RATIFY_DEMO_TOKEN must differ from RATIFY_RECEIVER_TOKEN")
         return cls(
             authority=AuthorityFixture(
                 delegation.issuer_id,
@@ -79,8 +84,8 @@ class AgentSettings:
             ),
             receiver_mcp_url=_required("RATIFY_RECEIVER_MCP_URL"),
             presentation_url=_required("RATIFY_PRESENTATION_URL"),
-            receiver_token=_required("RATIFY_RECEIVER_TOKEN"),
-            demo_token=_required("RATIFY_DEMO_TOKEN"),
+            receiver_token=receiver_token,
+            demo_token=demo_token,
             model_mode=mode,
             model_id=model_id,
         )

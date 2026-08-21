@@ -82,9 +82,12 @@ no Maritime deployment, durable shared state, ingress body limit, distributed
 rate limiting, or production handler. Those properties must not be claimed.
 
 Agent keys and transport credentials are supplied at runtime and excluded from
-the Docker build context. The in-process `/chat` limiter is suitable only for
-the bounded public demonstration; it resets on restart and is not shared across
-replicas. Production exposure still requires ingress-level rate and body limits.
+the Docker build context. The demo and receiver transport tokens must be
+distinct. Both runtime images use a pinned base-image digest, copy only their
+runtime source, run as an unprivileged fixed UID, and define a local health
+check. The in-process `/chat` limiter is suitable only for the bounded public
+demonstration; it resets on restart and is not shared across replicas.
+Production exposure still requires ingress-level rate and body limits.
 
 Starlette buffers an authenticated upload before the application checks its
 size. The deployed ingress must enforce a body limit. MCP discovery is public,
@@ -93,10 +96,7 @@ authenticated caller can fill the bounded 128-entry in-memory presentation
 registry and temporarily deny registrations to other callers. Challenge and
 tool-call rate limiting remain deployment requirements.
 
-The receiver image currently runs as root, copies the repository test files,
-and uses a moving `python:3.12-slim` base tag. These are deployment-hardening and
-reproducibility items for MAR-001..006, which remain pending. The local stores
-do not survive restart and are not shared across replicas.
+The local stores do not survive restart and are not shared across replicas.
 
 The receiver deliberately retains a pending challenge after an operation
 mismatch so a hostile submission cannot burn the legitimate grant. The request
