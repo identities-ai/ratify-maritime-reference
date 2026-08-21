@@ -55,3 +55,20 @@ Maritime deployment pending.
   passed; verdict `STAGE 3 PASSES`
 - Deployment status: the image has not yet been started on Maritime; MAR-001..006
   remain pending
+
+## Stage 4 agent-runtime checkpoint
+
+- Date: 2026-08-20
+- Command: `uv run --python 3.12 pytest -q -W error`
+- Result: 53 collected, 53 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
+- Coverage: strict agent-authority loading, private-key/delegation match,
+  deterministic and optional production model selection, and a real TCP
+  LangChain-to-MCP allow and same-agent over-limit denial
+- Agent image: `ratify-maritime-agent:stage4`, built locally from the root
+  `Dockerfile`
+- Container smoke: agent runtime import succeeded with
+  `ratify-protocol==1.0.0a16`, `pqcrypto==0.3.4`, and
+  `langchain-openai==1.6.0`
+- Production model status: configuration is implemented and unit-tested; no
+  provider call has been executed or claimed
+- Maritime deployment status: pending
