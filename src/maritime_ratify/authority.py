@@ -68,13 +68,47 @@ def issue_authority(
     expiry = issued_at + 3600 if expires_at is None else expires_at
     root, root_private = generate_human_root()
     agent, agent_private = generate_agent("Maritime Work Order Agent", "custom")
+    delegation = issue_bounded_delegation(
+        root_id=root.id,
+        root_public_key=root.public_key,
+        root_private_key=root_private,
+        agent_id=agent.id,
+        agent_public_key=agent.public_key,
+        issued_at=issued_at,
+        expires_at=expiry,
+        resource=resource,
+        category=category,
+        max_amount_minor=max_amount_minor,
+        currency=currency,
+        audience=audience,
+    )
+    return AuthorityFixture(
+        root.id, root.public_key, agent.id, agent_private, delegation
+    )
+
+
+def issue_bounded_delegation(
+    *,
+    root_id: str,
+    root_public_key: HybridPublicKey,
+    root_private_key: HybridPrivateKey,
+    agent_id: str,
+    agent_public_key: HybridPublicKey,
+    issued_at: int,
+    expires_at: int,
+    resource: str = DEFAULT_RESOURCE,
+    category: str = DEFAULT_CATEGORY,
+    max_amount_minor: int = DEFAULT_MAX_AMOUNT_MINOR,
+    currency: str = DEFAULT_CURRENCY,
+    audience: str = VERIFIER_ID,
+) -> DelegationCert:
     delegation = DelegationCert(
         cert_id=f"maritime-{uuid.uuid4().hex}",
         version=PROTOCOL_VERSION,
-        issuer_id=root.id,
-        issuer_pub_key=root.public_key,
-        subject_id=agent.id,
-        subject_pub_key=agent.public_key,
+        issuer_id=root_id,
+        issuer_pub_key=root_public_key,
+        subject_id=agent_id,
+        subject_pub_key=agent_public_key,
         scope=[WORK_ORDER_SCOPE],
         constraints=[
             Constraint(type="resource_path", resource_id=resource),
@@ -87,10 +121,8 @@ def issue_authority(
             Constraint(type=AUDIENCE_CONSTRAINT, params={"allowed": audience}),
         ],
         issued_at=issued_at,
-        expires_at=expiry,
+        expires_at=expires_at,
         signature=HybridSignature(ed25519=b"", ml_dsa_65=b""),
     )
-    issue_delegation(delegation, root_private)
-    return AuthorityFixture(
-        root.id, root.public_key, agent.id, agent_private, delegation
-    )
+    issue_delegation(delegation, root_private_key)
+    return delegation
