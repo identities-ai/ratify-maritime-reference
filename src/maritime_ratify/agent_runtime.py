@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import base64
+from collections import deque
 import json
 import os
+import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -34,16 +36,20 @@ from .agent import (
 )
 from .authority import AuthorityFixture
 from .profile import DEFAULT_CATEGORY, DEFAULT_CURRENCY, DEFAULT_RESOURCE
+from .transport import CallerAuthenticator, CarrierDenied
 
 _SCENARIO_AMOUNTS = {"allow": 42_000, "over_limit": 50_100}
+_CHAT_RATE_LIMIT = 30
+_CHAT_RATE_WINDOW_SECONDS = 60
 
 
 @dataclass(frozen=True)
 class AgentSettings:
-    authority: AuthorityFixture
+    authority: AuthorityFixture = field(repr=False)
     receiver_mcp_url: str
     presentation_url: str
-    receiver_token: str
+    receiver_token: str = field(repr=False)
+    demo_token: str = field(repr=False)
     model_mode: str
     model_id: str | None
 
@@ -74,9 +80,28 @@ class AgentSettings:
             receiver_mcp_url=_required("RATIFY_RECEIVER_MCP_URL"),
             presentation_url=_required("RATIFY_PRESENTATION_URL"),
             receiver_token=_required("RATIFY_RECEIVER_TOKEN"),
+            demo_token=_required("RATIFY_DEMO_TOKEN"),
             model_mode=mode,
             model_id=model_id,
         )
+
+
+class _RateLimiter:
+    def __init__(self, limit: int, window_seconds: int) -> None:
+        self._limit = limit
+        self._window_seconds = window_seconds
+        self._events: deque[float] = deque()
+        self._lock = threading.Lock()
+
+    def allow(self) -> bool:
+        now = time.monotonic()
+        with self._lock:
+            while self._events and self._events[0] <= now - self._window_seconds:
+                self._events.popleft()
+            if len(self._events) >= self._limit:
+                return False
+            self._events.append(now)
+            return True
 
 
 class DeterministicToolModel(BaseChatModel):
@@ -110,15 +135,26 @@ class DeterministicToolModel(BaseChatModel):
 
 
 def create_agent_app(settings: AgentSettings) -> Starlette:
+    authenticator = CallerAuthenticator({settings.demo_token: "demo-console"})
+    limiter = _RateLimiter(_CHAT_RATE_LIMIT, _CHAT_RATE_WINDOW_SECONDS)
+
     async def health(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
     async def chat(request: Request) -> JSONResponse:
         try:
+            authenticator.authenticate(request.scope.get("headers", ()))
+        except CarrierDenied:
+            return JSONResponse({"response": "Unauthorized."}, status_code=401)
+        if not limiter.allow():
+            return JSONResponse({"response": "Rate limit exceeded."}, status_code=429)
+        try:
             payload = await request.json()
             if type(payload) is not dict or set(payload) - {"message", "source"}:
                 raise ValueError
             scenario = payload.get("message")
+            if type(scenario) is not str:
+                raise ValueError
             if scenario not in _SCENARIO_AMOUNTS:
                 return JSONResponse(
                     {"response": "Unsupported demo scenario."}, status_code=400
@@ -129,7 +165,7 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
                 "scenario": scenario,
                 **decision,
             })
-        except (ValueError, json.JSONDecodeError):
+        except (TypeError, ValueError, json.JSONDecodeError):
             return JSONResponse({"response": "Invalid request."}, status_code=400)
         except Exception:
             return JSONResponse({"response": "Agent unavailable."}, status_code=503)
