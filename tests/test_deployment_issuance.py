@@ -27,12 +27,11 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     agent = _env(output / "agent.env")
     manifest_text = (output / "manifest.json").read_text()
     manifest = json.loads(manifest_text)
-    delegation = decode_delegation_cert(
-        base64.b64decode(agent["RATIFY_DELEGATION_B64"], validate=True).decode()
-    )
+    delegation = decode_delegation_cert((output / "delegation.json").read_text())
 
     assert set(path.name for path in output.iterdir()) == {
-        "agent.env", "manifest.json", "principal.json", "receiver.env"
+        "agent.env", "delegation.json", "manifest.json", "principal.json",
+        "receiver.env"
     }
     assert "root_private_key" in principal
     assert "agent_private_key" in principal
@@ -57,17 +56,13 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     initial = tmp_path / "initial"
     renewal = tmp_path / "renewal"
     issue_deployment(initial, now=1_800_000_000)
-    original = decode_delegation_cert(base64.b64decode(
-        _env(initial / "agent.env")["RATIFY_DELEGATION_B64"], validate=True
-    ).decode())
+    original = decode_delegation_cert((initial / "delegation.json").read_text())
 
     renew_deployment(initial / "principal.json", renewal, now=1_800_432_000)
 
-    renewed = decode_delegation_cert(base64.b64decode(
-        _env(renewal / "renewal.env")["RATIFY_DELEGATION_B64"], validate=True
-    ).decode())
+    renewed = decode_delegation_cert((renewal / "delegation.json").read_text())
     assert set(path.name for path in renewal.iterdir()) == {
-        "manifest.json", "renewal.env"
+        "delegation.json", "manifest.json"
     }
     assert renewed.issuer_id == original.issuer_id
     assert renewed.subject_id == original.subject_id
@@ -78,7 +73,7 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     assert renewed.issued_at == 1_800_432_000
     assert renewed.expires_at - renewed.issued_at == DEMO_VALIDITY_SECONDS
     assert verify_delegation_signature(renewed)
-    assert stat.S_IMODE((renewal / "renewal.env").stat().st_mode) == 0o600
+    assert stat.S_IMODE((renewal / "delegation.json").stat().st_mode) == 0o600
 
 
 def test_issuance_refuses_to_overwrite_an_existing_directory(tmp_path):
