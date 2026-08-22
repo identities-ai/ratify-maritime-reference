@@ -81,8 +81,9 @@ runtime configuration. Import `receiver.env` only into the receiver, then add
 only into the agent, then add the assigned receiver's
 `RATIFY_RECEIVER_MCP_URL` and `RATIFY_PRESENTATION_URL`. Maritime injects
 `PORT` into both runtimes. `principal.json` must remain outside Maritime and
-must never be committed, uploaded, or copied into either runtime. Renewal emits
-only a replacement `RATIFY_DELEGATION` and a new public manifest.
+must never be committed, uploaded, or copied into either runtime. The
+delegation is base64-wrapped for safe environment transport. Renewal emits only
+a replacement `RATIFY_DELEGATION_B64` and a new public manifest.
 
 ## Proof carrier
 
