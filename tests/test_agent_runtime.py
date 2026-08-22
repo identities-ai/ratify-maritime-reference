@@ -225,6 +225,8 @@ def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
         assert "COPY . /app" not in content
         assert "USER appuser" in content
         assert "HEALTHCHECK" in content
+        assert "CMD [\"/app/.venv/bin/python\"" in content
+        assert "CMD /app/.venv/bin/python -c" in content
 
 
 def _unused_port() -> int:
