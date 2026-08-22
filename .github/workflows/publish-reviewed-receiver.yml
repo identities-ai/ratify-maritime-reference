@@ -1,0 +1,43 @@
+name: Publish reviewed receiver image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SOURCE_REVISION: bf5adf3faf2a0c4f563a4e389d11951b05f3ca3d
+  IMAGE: ghcr.io/identities-ai/ratify-maritime-receiver:bf5adf3
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+
+      - name: Authenticate to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build reviewed receiver
+        run: |
+          docker build \
+            --label org.opencontainers.image.source=https://github.com/identities-ai/ratify-maritime-reference \
+            --label org.opencontainers.image.revision="$SOURCE_REVISION" \
+            --platform linux/amd64 \
+            -f apps/receiver/Dockerfile \
+            -t "$IMAGE" .
+
+      - name: Publish immutable revision tag
+        run: docker push "$IMAGE"
+
+      - name: Record published digest
+        run: docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE"
+
+      - name: Remove registry credential
+        if: always()
+        run: docker logout ghcr.io
