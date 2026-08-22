@@ -239,6 +239,11 @@ def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
         assert "CMD [\"/app/.venv/bin/python\"" in content
         assert "CMD /app/.venv/bin/python -c" in content
 
+    agent_dockerfile = dockerfiles[0].read_text()
+    assert "--mount=type=secret,id=ratify_delegation_b64" in agent_dockerfile
+    assert "RATIFY_DELEGATION_SHA256" in agent_dockerfile
+    assert "RATIFY_DELEGATION_PATH=/app/deployment/delegation.json" in agent_dockerfile
+
 
 def _unused_port() -> int:
     with socket.socket() as sock:

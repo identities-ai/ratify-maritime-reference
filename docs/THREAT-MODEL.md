@@ -81,9 +81,10 @@ private keys, proofs, or receiver policy.
 
 ## Residual risks
 
-This stage has local network transport plus receiver and agent containers, but
-no Maritime deployment, durable shared state, ingress body limit, distributed
-rate limiting, or production handler. Those properties must not be claimed.
+The receiver is deployed on Maritime from an immutable public GHCR digest. The
+agent deployment remains incomplete, so the two-runtime Maritime validation is
+not yet proven. There is still no durable shared state, ingress body limit,
+distributed rate limiting, or production handler.
 
 Agent keys and transport credentials are supplied at runtime and excluded from
 the Docker build context. The demo and receiver transport tokens must be
@@ -96,6 +97,11 @@ Production exposure still requires ingress-level rate and body limits.
 Demo delegations expire after seven days and are renewed on day five from the
 principal-controlled artifact. Renewal preserves the issuer, subject, and
 authority bounds and replaces only the signed delegation in the agent runtime.
+Maritime's environment injection corrupts the current hybrid certificate above
+its working payload size, and its custom-file deployment API failed during the
+first live deployment. The demo image therefore receives the public signed
+delegation through a BuildKit secret during CI; private keys remain runtime
+secrets. Renewal requires a new immutable agent image.
 
 Starlette buffers an authenticated upload before the application checks its
 size. The deployed ingress must enforce a body limit. MCP discovery is public,
