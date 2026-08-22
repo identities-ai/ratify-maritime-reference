@@ -1,0 +1,57 @@
+name: Publish reviewed agent image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  SOURCE_REVISION: 1afc3abdfaf95c97d61302f6d7538802d88c2e1b
+  DELEGATION_SHA256: b29cc4b352d262d80025f221b84c2f8f9be2c0f11ebc59a13445be04a4b608bf
+  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:1afc3ab
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out reviewed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REVISION }}
+
+      - name: Require deployment delegation
+        env:
+          RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
+        run: test -n "$RATIFY_DEPLOYMENT_DELEGATION_B64"
+
+      - name: Authenticate to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build reviewed agent
+        env:
+          RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
+        run: |
+          docker build \
+            --secret id=ratify_delegation_b64,env=RATIFY_DEPLOYMENT_DELEGATION_B64 \
+            --build-arg RATIFY_DELEGATION_SHA256="$DELEGATION_SHA256" \
+            --label org.opencontainers.image.source=https://github.com/identities-ai/ratify-maritime-reference \
+            --label org.opencontainers.image.revision="$SOURCE_REVISION" \
+            --label com.ratifyprotocol.delegation.sha256="$DELEGATION_SHA256" \
+            --platform linux/amd64 \
+            -t "$IMAGE" .
+
+      - name: Verify embedded delegation
+        run: |
+          test "$(docker run --rm --entrypoint sha256sum "$IMAGE" /app/deployment/delegation.json | cut -d ' ' -f 1)" = "$DELEGATION_SHA256"
+
+      - name: Publish immutable revision tag
+        run: docker push "$IMAGE"
+
+      - name: Record published digest
+        run: docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE"
+
+      - name: Remove registry credential
+        if: always()
+        run: docker logout ghcr.io
