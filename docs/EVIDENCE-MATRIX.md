@@ -65,6 +65,8 @@ agent runtime complete; Maritime deployment pending.
 - Command: `uv run --python 3.12 pytest -q -W error`
 - Result after deployment-issuance remediation: 70 collected, 70 passed, 0 skipped,
   0 xfailed, 0 failed, 0 errors
+- Current pre-deployment gate after Maritime compatibility work: 71 collected,
+  71 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
@@ -98,4 +100,6 @@ agent runtime complete; Maritime deployment pending.
 - Principal-integrity gate: renewal rejects wrong-length keys, foreign issuer
   keys, changed identifiers, missing fields, and malformed encoding before
   creating any output
-- Maritime deployment status: pending
+- Maritime deployment status: receiver active from immutable GHCR digest;
+  agent blocked pending reviewed build-time delegation injection, so
+  MAR-001..006 remain incomplete
