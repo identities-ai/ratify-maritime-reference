@@ -56,12 +56,17 @@ class AgentSettings:
 
     @classmethod
     def from_environment(cls) -> "AgentSettings":
+        delegation_path = os.environ.get("RATIFY_DELEGATION_PATH")
         try:
-            delegation_wire = base64.b64decode(
-                _required("RATIFY_DELEGATION_B64"), validate=True
-            ).decode("utf-8")
-        except (ValueError, UnicodeDecodeError):
-            raise RuntimeError("invalid RATIFY_DELEGATION_B64") from None
+            if delegation_path:
+                with open(delegation_path, encoding="utf-8") as stream:
+                    delegation_wire = stream.read().strip()
+            else:
+                delegation_wire = base64.b64decode(
+                    _required("RATIFY_DELEGATION_B64"), validate=True
+                ).decode("utf-8")
+        except (OSError, ValueError, UnicodeDecodeError):
+            raise RuntimeError("invalid deployment delegation") from None
         delegation = decode_delegation_cert(delegation_wire)
         private_key = HybridPrivateKey(
             ed25519=_private_key("RATIFY_AGENT_ED25519_PRIVATE_B64", 32),
@@ -69,7 +74,7 @@ class AgentSettings:
         )
         probe = b"ratify-maritime-agent-key-check"
         if verify_both(probe, sign_both(probe, private_key), delegation.subject_pub_key):
-            raise RuntimeError("agent private key does not match RATIFY_DELEGATION_B64")
+            raise RuntimeError("agent private key does not match deployment delegation")
         mode = os.environ.get("RATIFY_MODEL_MODE", "deterministic")
         if mode not in {"deterministic", "production"}:
             raise RuntimeError("invalid RATIFY_MODEL_MODE")

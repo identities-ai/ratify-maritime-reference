@@ -69,7 +69,7 @@ def test_agent_settings_reject_mismatched_private_authority(monkeypatch):
         base64.b64encode(other.agent_private_key.ed25519).decode(),
     )
 
-    with pytest.raises(RuntimeError, match="does not match RATIFY_DELEGATION_B64"):
+    with pytest.raises(RuntimeError, match="does not match deployment delegation"):
         AgentSettings.from_environment()
 
 
@@ -78,7 +78,7 @@ def test_agent_settings_reject_invalid_delegation_transport(monkeypatch):
     _environment(monkeypatch, authority)
     monkeypatch.setenv("RATIFY_DELEGATION_B64", "not base64")
 
-    with pytest.raises(RuntimeError, match="invalid RATIFY_DELEGATION_B64"):
+    with pytest.raises(RuntimeError, match="invalid deployment delegation"):
         AgentSettings.from_environment()
 
 
