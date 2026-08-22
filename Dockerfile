@@ -21,6 +21,6 @@ RUN useradd --system --uid 10001 --create-home appuser
 USER appuser
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c 'import os, urllib.request; urllib.request.urlopen("http://127.0.0.1:" + os.environ["PORT"] + "/health", timeout=2).read()'
+    CMD /app/.venv/bin/python -c 'import os, urllib.request; urllib.request.urlopen("http://127.0.0.1:" + os.environ["PORT"] + "/health", timeout=2).read()'
 
-CMD ["python", "apps/agent/start.py"]
+CMD ["/app/.venv/bin/python", "apps/agent/start.py"]
