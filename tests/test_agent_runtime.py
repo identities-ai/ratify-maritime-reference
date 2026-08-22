@@ -31,7 +31,9 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 def _environment(monkeypatch, authority):
     values = {
-        "RATIFY_DELEGATION": encode_delegation_cert(authority.delegation),
+        "RATIFY_DELEGATION_B64": base64.b64encode(
+            encode_delegation_cert(authority.delegation).encode()
+        ).decode(),
         "RATIFY_AGENT_ED25519_PRIVATE_B64": base64.b64encode(
             authority.agent_private_key.ed25519
         ).decode(),
@@ -67,7 +69,16 @@ def test_agent_settings_reject_mismatched_private_authority(monkeypatch):
         base64.b64encode(other.agent_private_key.ed25519).decode(),
     )
 
-    with pytest.raises(RuntimeError, match="does not match RATIFY_DELEGATION"):
+    with pytest.raises(RuntimeError, match="does not match RATIFY_DELEGATION_B64"):
+        AgentSettings.from_environment()
+
+
+def test_agent_settings_reject_invalid_delegation_transport(monkeypatch):
+    authority = issue_authority(now=int(time.time()) - 1)
+    _environment(monkeypatch, authority)
+    monkeypatch.setenv("RATIFY_DELEGATION_B64", "not base64")
+
+    with pytest.raises(RuntimeError, match="invalid RATIFY_DELEGATION_B64"):
         AgentSettings.from_environment()
 
 

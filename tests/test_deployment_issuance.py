@@ -27,7 +27,9 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     agent = _env(output / "agent.env")
     manifest_text = (output / "manifest.json").read_text()
     manifest = json.loads(manifest_text)
-    delegation = decode_delegation_cert(agent["RATIFY_DELEGATION"])
+    delegation = decode_delegation_cert(
+        base64.b64decode(agent["RATIFY_DELEGATION_B64"], validate=True).decode()
+    )
 
     assert set(path.name for path in output.iterdir()) == {
         "agent.env", "manifest.json", "principal.json", "receiver.env"
@@ -55,11 +57,15 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     initial = tmp_path / "initial"
     renewal = tmp_path / "renewal"
     issue_deployment(initial, now=1_800_000_000)
-    original = decode_delegation_cert(_env(initial / "agent.env")["RATIFY_DELEGATION"])
+    original = decode_delegation_cert(base64.b64decode(
+        _env(initial / "agent.env")["RATIFY_DELEGATION_B64"], validate=True
+    ).decode())
 
     renew_deployment(initial / "principal.json", renewal, now=1_800_432_000)
 
-    renewed = decode_delegation_cert(_env(renewal / "renewal.env")["RATIFY_DELEGATION"])
+    renewed = decode_delegation_cert(base64.b64decode(
+        _env(renewal / "renewal.env")["RATIFY_DELEGATION_B64"], validate=True
+    ).decode())
     assert set(path.name for path in renewal.iterdir()) == {
         "manifest.json", "renewal.env"
     }
