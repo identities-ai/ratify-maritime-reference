@@ -1,9 +1,7 @@
 """Maritime entry point for the separately configured receiver runtime."""
 
 import base64
-import ipaddress
 import os
-import socket
 
 import uvicorn
 from ratify_protocol import HybridPublicKey
@@ -29,23 +27,6 @@ def required_public_key(name: str, expected_bytes: int) -> bytes:
     return value
 
 
-def local_proxy_hosts() -> list[str]:
-    try:
-        addresses = {
-            result[4][0]
-            for result in socket.getaddrinfo(
-                socket.gethostname(), None, family=socket.AF_INET
-            )
-        }
-    except OSError:
-        return []
-    return sorted(
-        f"{address}:8080"
-        for address in addresses
-        if ipaddress.ip_address(address).is_private
-    )
-
-
 def build_app():
     root_key = HybridPublicKey(
         ed25519=required_public_key("RATIFY_ROOT_ED25519_B64", 32),
@@ -59,7 +40,6 @@ def build_app():
         host.strip() for host in required("RATIFY_ALLOWED_HOSTS").split(",")
         if host.strip()
     ]
-    hosts.extend(local_proxy_hosts())
     return create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator(
@@ -68,6 +48,7 @@ def build_app():
         presentations=PresentationRegistry(),
         expected_agent_id=required("RATIFY_AGENT_ID"),
         allowed_hosts=hosts,
+        allow_maritime_proxy_host=True,
     )
 
 
