@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import ipaddress
 import json
 from typing import Any
 
@@ -22,6 +23,8 @@ from .transport import CallerAuthenticator, CarrierDenied, PresentationRegistry
 
 MAX_PRESENTATION_UPLOAD_BYTES = 150_000
 CALLER_TOKEN_HEADER = b"x-ratify-caller-token"
+_MARITIME_PROXY_HOST = b"maritime-internal"
+_MARITIME_PROXY_NETWORK = ipaddress.ip_network("10.0.0.0/8")
 _ACTION_FIELDS = {
     "request_id", "scope", "resource", "category", "amount_minor", "currency",
     "description",
@@ -35,18 +38,22 @@ def create_receiver_app(
     presentations: PresentationRegistry,
     expected_agent_id: str,
     allowed_hosts: list[str] | None = None,
+    allow_maritime_proxy_host: bool = False,
 ) -> Starlette:
     # MCP 1.29 leaves one generic Settings annotation unresolved under
     # pydantic-settings 2.15. Rebuild from the module's complete namespace so
     # construction remains warning-free; remove after the upstream fix lands.
     FastMCPSettings.model_rebuild()
+    transport_hosts = list(allowed_hosts or ["localhost:*", "127.0.0.1:*"])
+    if allow_maritime_proxy_host:
+        transport_hosts.append(_MARITIME_PROXY_HOST.decode("ascii"))
     mcp = FastMCP(
         "Ratify Maritime Work Orders",
         stateless_http=True,
         json_response=True,
         streamable_http_path="/",
         transport_security=TransportSecuritySettings(
-            allowed_hosts=allowed_hosts or ["localhost:*", "127.0.0.1:*"]
+            allowed_hosts=transport_hosts
         ),
     )
 
@@ -153,12 +160,44 @@ def create_receiver_app(
         routes=[
             Route("/health", health, methods=["GET"]),
             Route("/presentations", upload_presentation, methods=["POST"]),
-            Mount("/mcp", app=mcp.streamable_http_app()),
+            Mount(
+                "/mcp",
+                app=_MaritimeProxyHost(mcp.streamable_http_app())
+                if allow_maritime_proxy_host
+                else mcp.streamable_http_app(),
+            ),
         ],
         lifespan=lifespan,
     )
     app.state.mcp = mcp
     return app
+
+
+class _MaritimeProxyHost:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = list(scope["headers"])
+            for index, (name, value) in enumerate(headers):
+                if name.lower() == b"host" and _is_maritime_proxy_host(value):
+                    headers[index] = (name, _MARITIME_PROXY_HOST)
+                    scope = {**scope, "headers": headers}
+                    break
+        await self.app(scope, receive, send)
+
+
+def _is_maritime_proxy_host(value: bytes) -> bool:
+    try:
+        host, separator, port = value.decode("ascii").rpartition(":")
+        return (
+            separator == ":"
+            and port == "8080"
+            and ipaddress.ip_address(host) in _MARITIME_PROXY_NETWORK
+        )
+    except (UnicodeDecodeError, ValueError):
+        return False
 
 
 def _work_order(

@@ -30,6 +30,10 @@ def test_host_authentication_and_duplicate_json_fail_before_dispatch():
     asyncio.run(_exercise_service_rejections())
 
 
+def test_maritime_private_proxy_host_is_bounded():
+    asyncio.run(_exercise_maritime_proxy_host())
+
+
 async def _exercise_service():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
@@ -237,6 +241,51 @@ async def _exercise_service_rejections():
             )
             assert response.status_code == 421
     assert receiver.handler_invocations == 0
+
+
+async def _exercise_maritime_proxy_host():
+    now = int(time.time())
+    authority = issue_authority(now=now - 1)
+    app = create_receiver_app(
+        receiver=WorkOrderReceiver(
+            trusted_root_id=authority.root_id,
+            trusted_root_public_key=authority.root_public_key,
+            clock=lambda: now,
+        ),
+        authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
+        presentations=PresentationRegistry(clock=lambda: now),
+        expected_agent_id=authority.agent_id,
+        allowed_hosts=["test"],
+        allow_maritime_proxy_host=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "host-probe", "version": "1"},
+        },
+    }
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=transport,
+            headers={"Accept": "application/json, text/event-stream"},
+        ) as http:
+            accepted = await http.post(
+                "http://10.6.110.2:8080/mcp/", json=request
+            )
+            wrong_port = await http.post(
+                "http://10.6.110.2:18789/mcp/", json=request
+            )
+            public_address = await http.post(
+                "http://8.8.8.8:8080/mcp/", json=request
+            )
+    assert accepted.status_code == 200
+    assert wrong_port.status_code == 421
+    assert public_address.status_code == 421
 
 
 def _structured_result(result):
