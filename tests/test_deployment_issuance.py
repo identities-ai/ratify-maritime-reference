@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import stat
 
@@ -38,12 +39,16 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert not any("PRIVATE" in key for key in receiver)
     assert "RATIFY_ROOT_ID" not in agent
     assert "RATIFY_AGENT_ED25519_PRIVATE_B64" in agent
+    assert agent["RATIFY_DELEGATION_PATH"] == "/app/deployment/delegation.json"
     assert agent["RATIFY_RECEIVER_TOKEN"] == receiver["RATIFY_CALLER_TOKEN"]
     assert agent["RATIFY_DEMO_TOKEN"] != agent["RATIFY_RECEIVER_TOKEN"]
     assert delegation.expires_at - delegation.issued_at == DEMO_VALIDITY_SECONDS
     assert verify_delegation_signature(delegation)
     assert manifest["agent_id"] == delegation.subject_id
     assert manifest["expires_at"] == delegation.expires_at
+    delegation_bytes = (output / "delegation.json").read_bytes()
+    assert not delegation_bytes.endswith(b"\n")
+    assert manifest["delegation_sha256"] == hashlib.sha256(delegation_bytes).hexdigest()
     assert principal["root_private_key"]["ed25519"] not in manifest_text
     assert principal["agent_private_key"]["ed25519"] not in manifest_text
 
@@ -73,6 +78,10 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     assert renewed.issued_at == 1_800_432_000
     assert renewed.expires_at - renewed.issued_at == DEMO_VALIDITY_SECONDS
     assert verify_delegation_signature(renewed)
+    delegation_bytes = (renewal / "delegation.json").read_bytes()
+    manifest = json.loads((renewal / "manifest.json").read_text())
+    assert not delegation_bytes.endswith(b"\n")
+    assert manifest["delegation_sha256"] == hashlib.sha256(delegation_bytes).hexdigest()
     assert stat.S_IMODE((renewal / "delegation.json").stat().st_mode) == 0o600
 
 

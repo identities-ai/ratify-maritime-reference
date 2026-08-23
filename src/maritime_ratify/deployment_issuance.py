@@ -69,14 +69,14 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
     })
     wire = encode_delegation_cert(delegation)
     _write_private_env(output / "agent.env", {
-        "RATIFY_DELEGATION_PATH": "/data/ratify/delegation.json",
+        "RATIFY_DELEGATION_PATH": "/app/deployment/delegation.json",
         "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(agent_private.ed25519),
         "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(agent_private.ml_dsa_65),
         "RATIFY_RECEIVER_TOKEN": receiver_token,
         "RATIFY_DEMO_TOKEN": demo_token,
         "RATIFY_MODEL_MODE": "deterministic",
     })
-    _write_private(output / "delegation.json", wire + "\n")
+    _write_private(output / "delegation.json", wire)
     _write_manifest(output / "manifest.json", delegation, wire)
 
 
@@ -109,7 +109,7 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
         raise RuntimeError("principal artifact is inconsistent")
     _prepare_output(output)
     wire = encode_delegation_cert(delegation)
-    _write_private(output / "delegation.json", wire + "\n")
+    _write_private(output / "delegation.json", wire)
     _write_manifest(output / "manifest.json", delegation, wire)
 
 

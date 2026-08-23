@@ -78,14 +78,14 @@ uv run --python 3.12 python scripts/issue_demo_authority.py renew \
 The generated env files contain authority and credential material, not complete
 runtime configuration. Import `receiver.env` only into the receiver, then add
 `RATIFY_ALLOWED_HOSTS` after Maritime assigns its hostname. Import `agent.env`
-only into the agent, upload `delegation.json` to
-`/data/ratify/delegation.json`, then add the assigned receiver's
+only into the agent, then add the assigned receiver's
 `RATIFY_RECEIVER_MCP_URL` and `RATIFY_PRESENTATION_URL`. Maritime injects
 `PORT` into both runtimes. `principal.json` must remain outside Maritime and
-must never be committed, uploaded, or copied into either runtime. The
-delegation is a signature-protected deployment file because Maritime's
-environment injection is not suitable for the large hybrid certificate.
-Renewal emits only a replacement `delegation.json` and a new public manifest.
+must never be committed, uploaded, or copied into either runtime. The public,
+signature-protected `delegation.json` is injected into the immutable agent
+image during its reviewed CI build because Maritime's runtime configuration is
+not suitable for the large hybrid certificate. Renewal emits a replacement
+`delegation.json` and public manifest, followed by a new agent image.
 
 ## Proof carrier
 
