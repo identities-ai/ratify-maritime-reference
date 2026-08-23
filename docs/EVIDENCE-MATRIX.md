@@ -16,6 +16,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
 | UI-001..013 | Executed console evidence and visual QA | Pending |
+| PXY-001..024 | Demo proxy unit, type, and bundle gates | Implemented locally; deployment review pending |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
 
@@ -124,3 +125,18 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - All three temporary Maritime API keys report `is_active: false`
 - MAR-005 remains open because Maritime returns stale logs from a superseded
   runtime generation instead of current application output
+
+## Demo proxy implementation checkpoint
+
+- Date: 2026-08-23
+- Worker tests: 26 collected, 26 passed, 0 skipped, 0 failed
+- TypeScript: `tsc --noEmit` passed
+- Wrangler production dry run: 5.25 KiB upload, 1.79 KiB gzip
+- Bindings: one Durable Object limiter, public agent URL, public console origin,
+  and a required secret binding named `RATIFY_DEMO_TOKEN`
+- Limits: five requests per attested client and twenty requests globally per
+  minute, below the agent's thirty-per-minute fallback budget
+- Scope: exact scenario trigger and response projection only; no evidence read
+  endpoint, user store, analytics, or console UI
+- Deployment status: not deployed; Cloudflare account verification and hostile
+  proxy review remain required

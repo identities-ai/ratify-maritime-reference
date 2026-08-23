@@ -6,4 +6,7 @@ __pycache__/
 .env.*
 !.env.example
 evidence/generated/
-
+node_modules/
+.wrangler/
+.dev.vars*
+coverage/

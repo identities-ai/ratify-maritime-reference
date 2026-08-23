@@ -123,6 +123,18 @@ tool-call rate limiting remain deployment requirements.
 
 The local stores do not survive restart and are not shared across replicas.
 
+The demo scenario proxy is a separate internet-facing component. It holds only
+the demo transport token in a Cloudflare secret binding and constructs a fresh
+agent request from a closed scenario enumeration; browser bodies, headers,
+cookies, query strings, and identifiers are never forwarded. Agent responses
+are projected onto six public fields, and authentication, rate-limit, timeout,
+and backend failures map to stable redacted errors. Cross-origin responses are
+restricted to the console origin and are never cacheable. A Durable Object
+serializes the five-per-client and twenty-global one-minute budgets across
+Worker instances, keyed by Cloudflare's attested client address. If that
+backend fails, the proxy fails closed. The proxy stores no evidence or user
+data and remains outside the Ratify authorization decision.
+
 The receiver deliberately retains a pending challenge after an operation
 mismatch so a hostile submission cannot burn the legitimate grant. The request
 ID cannot be challenged again until that grant succeeds or its 300-second TTL
