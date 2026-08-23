@@ -16,7 +16,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
 | UI-001..013 | Executed console evidence and visual QA | Pending |
-| PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Deployed; closure retest pending |
+| PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
 
@@ -148,7 +148,8 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Custom domain: `https://maritime-api.ratifyprotocol.com/api/scenario`
 - Deployment source: `43a7935`; Worker version:
   `045129f8-fe1f-42ff-8f82-8534989110f7`
-- Public DNS resolves through Cloudflare; the prior `workers.dev` route returns
+- Public DNS resolves through Cloudflare; the operator observed the prior
+  `https://ratify-maritime-demo-proxy.chuks-04d.workers.dev` route returning
   HTTP 404, and preview URLs are disabled in source-controlled configuration
 - Secret inspection exposes only the binding name and type `secret_text`
 - Live invalid scenario: HTTP 400 `INVALID_REQUEST`
