@@ -62,6 +62,7 @@ async def _exercise_service():
             headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
         ) as http:
             assert (await http.get("/health")).json() == {"status": "ok"}
+            assert (await http.get("/_deployment/host")).json() == {"host": "test"}
             async with streamable_http_client(
                 "http://test/mcp/", http_client=http
             ) as (read, write, _):

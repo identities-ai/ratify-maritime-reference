@@ -144,6 +144,9 @@ def create_receiver_app(
     async def health(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok"})
 
+    async def deployment_host(request: Request) -> JSONResponse:
+        return JSONResponse({"host": request.headers.get("host")})
+
     @contextlib.asynccontextmanager
     async def lifespan(_: Starlette):
         async with mcp.session_manager.run():
@@ -152,6 +155,7 @@ def create_receiver_app(
     app = Starlette(
         routes=[
             Route("/health", health, methods=["GET"]),
+            Route("/_deployment/host", deployment_host, methods=["GET"]),
             Route("/presentations", upload_presentation, methods=["POST"]),
             Mount("/mcp", app=mcp.streamable_http_app()),
         ],
