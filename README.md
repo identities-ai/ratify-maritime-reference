@@ -12,8 +12,8 @@ hostile concurrency, caller ownership, strict proof upload, duplicate and
 oversized carriers, real Streamable HTTP MCP discovery and execution, and the
 LangChain authority-interceptor seam. Stage 4 now includes a deterministic
 LangChain agent runtime and an optional production-model configuration; image
-verification now passes locally, while Maritime deployment and the public demo
-console remain pending.
+verification now passes locally and across two deployed Maritime runtimes; the
+public demo console remains pending.
 
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
 
