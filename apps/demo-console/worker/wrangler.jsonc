@@ -7,9 +7,6 @@
     "AGENT_URL": "https://api.maritime.sh/a/526e13bb-5a8c-47fc-94bf-96a0dc417983",
     "CONSOLE_ORIGIN": "https://labs.ratifyprotocol.com"
   },
-  "secrets": {
-    "required": ["RATIFY_DEMO_TOKEN"]
-  },
   "durable_objects": {
     "bindings": [
       {

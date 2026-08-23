@@ -17,9 +17,14 @@ public fields, and uses one Durable Object to enforce exact five-per-client and
 twenty-global requests per minute. The client key comes only from
 `CF-Connecting-IP`. Limiter failure denies the request.
 
-The Worker requires `RATIFY_DEMO_TOKEN` as a Cloudflare secret. Never put that
-value in `wrangler.jsonc`, `.dev.vars`, source, or a client bundle committed to
-the repository.
+Limiter correctness depends on the Durable Object storage input gate and its
+single `public-demo` identity. Do not migrate the counters to KV or enable
+concurrent storage access. Each check also deletes expired client-address keys,
+so addresses are retained only for the active one-minute window.
+
+The Worker requires `RATIFY_DEMO_TOKEN` as a Cloudflare secret and fails closed
+before rate limiting or agent contact when it is absent. Never commit that value
+in `wrangler.jsonc`, `.dev.vars`, source, or a client bundle.
 
 Run the local gate:
 

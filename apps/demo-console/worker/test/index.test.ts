@@ -22,6 +22,16 @@ class TestStorage {
   async put<T>(key: string, value: T): Promise<void> {
     this.values.set(key, value);
   }
+
+  async list<T>(options: { prefix: string }): Promise<Map<string, T>> {
+    return new Map(
+      [...this.values.entries()].filter(([key]) => key.startsWith(options.prefix))
+    ) as Map<string, T>;
+  }
+
+  async delete(key: string): Promise<boolean> {
+    return this.values.delete(key);
+  }
 }
 
 function limitRequest(client: string, now = 1_000_000): Request {
@@ -112,6 +122,17 @@ describe("scenario proxy", () => {
     const { env, limiter } = environment();
     const fetchAgent = agent();
     const response = await handleRequest(request(body), env, fetchAgent);
+    expect(response.status).toBe(400);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicate scenario keys as ambiguous", async () => {
+    const { env, limiter } = environment();
+    const fetchAgent = agent();
+    const response = await handleRequest(request(undefined, {
+      body: '{"scenario":"allow","scenario":"over_limit"}',
+    }), env, fetchAgent);
     expect(response.status).toBe(400);
     expect(limiter).not.toHaveBeenCalled();
     expect(fetchAgent).not.toHaveBeenCalled();
@@ -235,6 +256,16 @@ describe("scenario proxy", () => {
     expect(response.status).toBe(503);
   });
 
+  it("fails before limiting when the secret is missing", async () => {
+    const { env, limiter } = environment();
+    env.RATIFY_DEMO_TOKEN = "";
+    const fetchAgent = agent();
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(503);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
   it("exports the Worker fetch handler", async () => {
     const { env } = environment();
     const response = await worker.fetch(request({ scenario: "bad" }), env);
@@ -285,5 +316,15 @@ describe("durable limiter", () => {
     );
     expect(results.filter((result) => result.allowed).length).toBe(20);
     expect(results.filter((result) => !result.allowed).length).toBe(1);
+  });
+
+  it("deletes client-address keys after their window expires", async () => {
+    const storage = new TestStorage();
+    const limiter = new ScenarioLimiter({ storage });
+    await limiter.fetch(limitRequest("old-client", 1_000_000));
+    expect(storage.values.has("client:old-client")).toBe(true);
+    await limiter.fetch(limitRequest("new-client", 1_060_001));
+    expect(storage.values.has("client:old-client")).toBe(false);
+    expect(storage.values.has("client:new-client")).toBe(true);
   });
 });

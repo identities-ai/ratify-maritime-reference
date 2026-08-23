@@ -129,11 +129,14 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 ## Demo proxy implementation checkpoint
 
 - Date: 2026-08-23
-- Worker tests: 26 collected, 26 passed, 0 skipped, 0 failed
+- Worker tests: 29 collected, 29 passed, 0 skipped, 0 failed
 - TypeScript: `tsc --noEmit` passed
 - Wrangler production dry run: 5.25 KiB upload, 1.79 KiB gzip
-- Bindings: one Durable Object limiter, public agent URL, public console origin,
-  and a required secret binding named `RATIFY_DEMO_TOKEN`
+- Bindings: one Durable Object limiter, public agent URL, and public console
+  origin; `RATIFY_DEMO_TOKEN` is configured separately with `wrangler secret`
+- Closure hardening: duplicate scenario keys reject as ambiguous, expired
+  client-address keys are deleted, and a missing token fails before limiting or
+  agent contact
 - Limits: five requests per attested client and twenty requests globally per
   minute, below the agent's thirty-per-minute fallback budget
 - Scope: exact scenario trigger and response projection only; no evidence read

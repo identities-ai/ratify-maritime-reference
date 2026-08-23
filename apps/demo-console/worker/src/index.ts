@@ -29,6 +29,8 @@ interface Storage {
 interface Transaction {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
+  list<T>(options: { prefix: string }): Promise<Map<string, T>>;
+  delete(key: string): Promise<boolean>;
 }
 
 interface DurableState {
@@ -55,6 +57,15 @@ export class ScenarioLimiter {
         const global = trim(
           await transaction.get<number[]>("global") ?? [], now
         );
+        const storedClients = await transaction.list<number[]>({ prefix: "client:" });
+        for (const [key, hits] of storedClients) {
+          const active = trim(hits, now);
+          if (active.length === 0) {
+            await transaction.delete(key);
+          } else if (active.length !== hits.length) {
+            await transaction.put(key, active);
+          }
+        }
         const clientKey = `client:${client}`;
         const clientHits = trim(
           await transaction.get<number[]>(clientKey) ?? [], now
@@ -115,18 +126,18 @@ export async function handleRequest(
   try {
     const raw = await request.text();
     if (raw.length > 256) throw new Error();
-    const payload: unknown = JSON.parse(raw);
-    if (
-      typeof payload !== "object" || payload === null ||
-      Object.keys(payload).length !== 1 ||
-      typeof (payload as Record<string, unknown>).scenario !== "string" ||
-      !SCENARIOS.has((payload as { scenario: string }).scenario)
-    ) {
-      throw new Error();
-    }
-    scenario = (payload as { scenario: string }).scenario;
+    const match = /^\s*\{\s*"scenario"\s*:\s*"(allow|over_limit)"\s*\}\s*$/.exec(raw);
+    if (!match || !SCENARIOS.has(match[1])) throw new Error();
+    scenario = match[1];
   } catch {
     return reply({ error: "INVALID_REQUEST" }, 400, env.CONSOLE_ORIGIN);
+  }
+
+  if (
+    typeof env.RATIFY_DEMO_TOKEN !== "string" ||
+    env.RATIFY_DEMO_TOKEN.length === 0
+  ) {
+    return reply({ error: "SCENARIO_UNAVAILABLE" }, 503, env.CONSOLE_ORIGIN);
   }
 
   try {
