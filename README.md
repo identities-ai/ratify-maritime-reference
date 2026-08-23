@@ -94,6 +94,9 @@ The model-visible MCP tool contains only the six business arguments shown in
 the architecture. The LangChain interceptor obtains a challenge, uploads the
 canonical Ratify proof through a body capped before decoding, receives a short
 single-use reference, and adds only that reference to the selected MCP call.
+Agent-to-receiver requests authenticate with the dedicated
+`X-Ratify-Caller-Token` header because the deployed Maritime gateway removes
+the standard `Authorization` header from public runtime requests.
 
 The current hybrid proof is approximately 18 KB. Carrying it directly in an
 HTTP header would be brittle across ingress and proxy limits, so this reference

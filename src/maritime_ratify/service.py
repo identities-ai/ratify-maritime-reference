@@ -21,6 +21,7 @@ from .receiver import WorkOrderReceiver
 from .transport import CallerAuthenticator, CarrierDenied, PresentationRegistry
 
 MAX_PRESENTATION_UPLOAD_BYTES = 150_000
+CALLER_TOKEN_HEADER = b"x-ratify-caller-token"
 _ACTION_FIELDS = {
     "request_id", "scope", "resource", "category", "amount_minor", "currency",
     "description",
@@ -61,7 +62,9 @@ def create_receiver_app(
     ) -> dict[str, Any]:
         """Issue a challenge for one exact work-order action."""
         try:
-            caller_id = authenticator.authenticate(_raw_context_headers(ctx))
+            caller_id = authenticator.authenticate(
+                _caller_auth_headers(_raw_context_headers(ctx))
+            )
             action = _work_order(
                 request_id, resource, category, amount_minor, currency, description
             )
@@ -96,7 +99,7 @@ def create_receiver_app(
         """Create one maintenance work order within delegated authority."""
         try:
             raw_headers = _raw_context_headers(ctx)
-            caller_id = authenticator.authenticate(raw_headers)
+            caller_id = authenticator.authenticate(_caller_auth_headers(raw_headers))
             action = _work_order(
                 request_id, resource, category, amount_minor, currency, description
             )
@@ -119,7 +122,9 @@ def create_receiver_app(
 
     async def upload_presentation(request: Request) -> JSONResponse:
         try:
-            caller_id = authenticator.authenticate(request.scope["headers"])
+            caller_id = authenticator.authenticate(
+                _caller_auth_headers(request.scope["headers"])
+            )
             raw = await request.body()
             action, proof_wire = _decode_upload(raw)
             reference = presentations.register(
@@ -173,6 +178,16 @@ def _work_order(
 def _raw_context_headers(ctx: Context) -> list[tuple[bytes, bytes]]:
     request = ctx.request_context.request
     return list(request.scope["headers"])
+
+
+def _caller_auth_headers(
+    raw_headers: list[tuple[bytes, bytes]],
+) -> list[tuple[bytes, bytes]]:
+    return [
+        (b"authorization", value)
+        for name, value in raw_headers
+        if name.lower() == CALLER_TOKEN_HEADER
+    ]
 
 
 def _decode_upload(raw: bytes) -> tuple[WorkOrder, str]:

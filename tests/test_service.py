@@ -59,7 +59,7 @@ async def _exercise_service():
         async with httpx.AsyncClient(
             transport=transport,
             base_url="http://test",
-            headers={"Authorization": "Bearer agent-secret"},
+            headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
         ) as http:
             assert (await http.get("/health")).json() == {"status": "ok"}
             async with streamable_http_client(
@@ -133,7 +133,7 @@ async def _exercise_dependency_failure():
             transport=transport,
             base_url="http://test",
             headers={
-                "Authorization": "Bearer agent-secret",
+                "X-Ratify-Caller-Token": "Bearer agent-secret",
                 "X-Ratify-Proof-Reference": "opaque-reference",
             },
         ) as http:
@@ -182,9 +182,23 @@ async def _exercise_service_rejections():
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test"
         ) as http:
-            duplicate = await http.post(
+            standard_header = await http.post(
                 "/presentations",
                 headers={"Authorization": "Bearer agent-secret"},
+                content=b"{}",
+            )
+            assert standard_header.json()["reason"] == "DENY_INVALID_REQUEST"
+
+            wrong_custom_header = await http.post(
+                "/presentations",
+                headers={"X-Ratify-Caller-Token": "Bearer wrong"},
+                content=b"{}",
+            )
+            assert wrong_custom_header.json()["reason"] == "DENY_TRANSPORT_AUTH"
+
+            duplicate = await http.post(
+                "/presentations",
+                headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
                 content=b'{"action":{},"proof":"one","proof":"two"}',
             )
             assert duplicate.status_code == 400
