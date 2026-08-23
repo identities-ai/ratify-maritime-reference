@@ -27,3 +27,17 @@ def test_receiver_rejects_wrong_length_root_public_keys(monkeypatch):
 
     with pytest.raises(RuntimeError, match="RATIFY_ROOT_ED25519_B64"):
         receiver_start.build_app()
+
+
+def test_local_proxy_hosts_are_exact_private_addresses(monkeypatch):
+    monkeypatch.setattr(receiver_start.socket, "gethostname", lambda: "receiver")
+    monkeypatch.setattr(
+        receiver_start.socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [
+            (receiver_start.socket.AF_INET, 1, 6, "", ("10.6.110.2", 0)),
+            (receiver_start.socket.AF_INET, 1, 6, "", ("8.8.8.8", 0)),
+        ],
+    )
+
+    assert receiver_start.local_proxy_hosts() == ["10.6.110.2:8080"]
