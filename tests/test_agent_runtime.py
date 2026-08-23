@@ -191,9 +191,14 @@ def test_chat_requires_authentication_and_rejects_non_string_message(monkeypatch
 
     with TestClient(app) as client:
         assert client.post("/chat", json={"message": "allow"}).status_code == 401
-        response = client.post(
+        assert client.post(
             "/chat",
             headers={"Authorization": "Bearer test-demo-token"},
+            json={"message": "allow"},
+        ).status_code == 401
+        response = client.post(
+            "/chat",
+            headers={"X-Ratify-Demo-Token": "Bearer test-demo-token"},
             json={"message": ["allow"]},
         )
 
@@ -206,7 +211,7 @@ def test_chat_rate_limits_authenticated_requests(monkeypatch):
     _environment(monkeypatch, authority)
     monkeypatch.setattr(runtime_module, "_CHAT_RATE_LIMIT", 1)
     app = create_agent_app(AgentSettings.from_environment())
-    headers = {"Authorization": "Bearer test-demo-token"}
+    headers = {"X-Ratify-Demo-Token": "Bearer test-demo-token"}
 
     with TestClient(app) as client:
         first = client.post("/chat", headers=headers, json={"message": []})

@@ -36,8 +36,9 @@ starts a long-lived server on the injected `PORT` and exposes:
 
 - `GET /health`: side-effect-free readiness
 - `POST /chat`: accepts only the enumerated `allow` and `over_limit` demo
-  scenarios, requires `Authorization: Bearer <RATIFY_DEMO_TOKEN>`, and applies
-  an in-process request limit
+  scenarios, requires `X-Ratify-Demo-Token: Bearer <RATIFY_DEMO_TOKEN>`, and
+  applies an in-process request limit. The dedicated header avoids Maritime's
+  platform-level use of `Authorization`.
 
 The default `RATIFY_MODEL_MODE=deterministic` path exercises the real LangChain
 and MCP integration without a paid model. Set `RATIFY_MODEL_MODE=production`
