@@ -106,9 +106,19 @@ Ratify subject, exact canonical action, and a short TTL, and is consumed once.
 The frozen build requirements are in
 [`docs/REFERENCE-REQUIREMENTS.md`](docs/REFERENCE-REQUIREMENTS.md).
 
+## Demo scenario proxy
+
+`apps/demo-console/worker/` contains the reviewed-before-deployment Cloudflare
+Worker boundary for the static console. It accepts only the two enumerated
+scenarios, constructs the Maritime agent request server-side, projects the
+response onto documented public fields, and keeps the demo credential in a
+Cloudflare secret binding. An exact Durable Object limiter applies both a
+per-client and a global budget across Worker instances. No browser credential,
+general proxying, evidence API, user account, or analytics store is included.
+
 Planned deployment:
 
 - `apps/agent/`: LangChain agent runtime built by the root `Dockerfile`
 - `apps/receiver/`: Ratify-verifying MCP receiver in a second isolated runtime
-- `apps/demo-console/`: standalone Ratify-branded UI deployed independently at
-  `labs.ratifyprotocol.com/maritime`
+- `apps/demo-console/`: reviewed proxy followed by a standalone Ratify-branded
+  UI deployed independently at `labs.ratifyprotocol.com/maritime`

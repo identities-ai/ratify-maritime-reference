@@ -1,0 +1,289 @@
+import { describe, expect, it, vi } from "vitest";
+
+import worker, { handleRequest, ScenarioLimiter } from "../src/index";
+
+const TOKEN = "demo-token-marker";
+const ORIGIN = "https://labs.ratifyprotocol.com";
+
+class TestStorage {
+  readonly values = new Map<string, unknown>();
+  private pending = Promise.resolve();
+
+  transaction<T>(callback: (transaction: TestStorage) => Promise<T>): Promise<T> {
+    const result = this.pending.then(() => callback(this));
+    this.pending = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    this.values.set(key, value);
+  }
+}
+
+function limitRequest(client: string, now = 1_000_000): Request {
+  return new Request("https://limiter/check", {
+    method: "POST",
+    body: JSON.stringify({ client, now }),
+  });
+}
+
+function environment(options: { allowed?: boolean; limiterFailure?: boolean } = {}) {
+  const limiter = vi.fn(async (_request: Request) => {
+    if (options.limiterFailure) throw new Error("backend secret text");
+    return Response.json({ allowed: options.allowed ?? true });
+  });
+  return {
+    env: {
+      AGENT_URL: "https://agent.example",
+      CONSOLE_ORIGIN: ORIGIN,
+      RATIFY_DEMO_TOKEN: TOKEN,
+      SCENARIO_LIMITER: {
+        idFromName: () => "one-global-object",
+        get: () => ({ fetch: limiter }),
+      },
+    },
+    limiter,
+  };
+}
+
+function request(body: unknown = { scenario: "allow" }, init: RequestInit = {}) {
+  const headers = new Headers({
+    "CF-Connecting-IP": "192.0.2.10",
+    "Content-Type": "application/json",
+    "Origin": ORIGIN,
+  });
+  new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+  return new Request("https://proxy.example/api/scenario", {
+    ...init,
+    method: init.method ?? "POST",
+    headers,
+    body: init.body ?? JSON.stringify(body),
+  });
+}
+
+function agent(status = 200, extra: object = {}) {
+  return vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    Response.json({
+      decision: "ALLOW",
+      reason: "ALLOW",
+      handler_invocations: 7,
+      private_key: "must-be-dropped",
+      ...extra,
+    }, { status })
+  );
+}
+
+describe("scenario proxy", () => {
+  it.each(["allow", "over_limit"])("constructs and projects %s", async (scenario) => {
+    const { env } = environment();
+    const fetchAgent = agent(200, scenario === "over_limit" ? {
+      decision: "DENY", reason: "DENY_LIMIT_EXCEEDED",
+    } : {});
+    const response = await handleRequest(request({ scenario }), env, fetchAgent);
+    const body = await response.json<Record<string, unknown>>();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      scenario,
+      decision: scenario === "allow" ? "ALLOW" : "DENY",
+      reason: scenario === "allow" ? "ALLOW" : "DENY_LIMIT_EXCEEDED",
+      handler_invocations: 7,
+    });
+    expect(Object.keys(body).sort()).toEqual([
+      "correlation_id", "decision", "handler_invocations", "reason", "scenario",
+      "timestamp",
+    ]);
+    const init = fetchAgent.mock.calls[0][1] as RequestInit;
+    expect(init.body).toBe(JSON.stringify({ message: scenario }));
+    expect(init.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-Ratify-Demo-Token": `Bearer ${TOKEN}`,
+    });
+  });
+
+  it.each([
+    { scenario: "unknown" }, { scenario: null }, { scenario: [] },
+    { scenario: {} }, { scenario: 1 }, { scenario: "allow", extra: true },
+    { scenario: "allow", proof: "fake" },
+  ])("rejects invalid or extended bodies", async (body) => {
+    const { env, limiter } = environment();
+    const fetchAgent = agent();
+    const response = await handleRequest(request(body), env, fetchAgent);
+    expect(response.status).toBe(400);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("does not forward client headers, query, cookies, or identifiers", async () => {
+    const { env } = environment();
+    const fetchAgent = agent();
+    const supplied = new Request(
+      "https://proxy.example/api/scenario?proof=fake",
+      {
+        method: "POST",
+        headers: {
+          "CF-Connecting-IP": "192.0.2.10",
+          "Origin": ORIGIN,
+          "Authorization": "Bearer attacker",
+          "Cookie": "session=attacker",
+          "X-Forwarded-For": "8.8.8.8",
+        },
+        body: JSON.stringify({ scenario: "allow" }),
+      },
+    );
+    const response = await handleRequest(supplied, env, fetchAgent);
+    expect(response.status).toBe(200);
+    const init = fetchAgent.mock.calls[0][1] as RequestInit;
+    expect(String(init.body)).toBe('{"message":"allow"}');
+    expect(JSON.stringify(init)).not.toContain("attacker");
+    expect(JSON.stringify(init)).not.toContain("proof");
+  });
+
+  it.each(["GET", "PUT", "DELETE"])("rejects %s without side effects", async (method) => {
+    const { env, limiter } = environment();
+    const fetchAgent = agent();
+    const response = await handleRequest(new Request(
+      "https://proxy.example/api/scenario", { method }
+    ), env, fetchAgent);
+    expect(response.status).toBe(404);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("answers the exact console preflight without triggering a scenario", async () => {
+    const { env, limiter } = environment();
+    const fetchAgent = agent();
+    const response = await handleRequest(new Request(
+      "https://proxy.example/api/scenario",
+      { method: "OPTIONS", headers: { Origin: ORIGIN } },
+    ), env, fetchAgent);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("rejects other paths", async () => {
+    const { env, limiter } = environment();
+    const response = await handleRequest(new Request(
+      "https://proxy.example/other", { method: "POST" }
+    ), env, agent());
+    expect(response.status).toBe(404);
+    expect(limiter).not.toHaveBeenCalled();
+  });
+
+  it("uses the attested client address and ignores spoofed forwarding", async () => {
+    const { env, limiter } = environment();
+    await handleRequest(request({ scenario: "allow" }, {
+      headers: { "X-Forwarded-For": "8.8.8.8" },
+    }), env, agent());
+    const limiterRequest = limiter.mock.calls[0][0] as Request;
+    expect(await limiterRequest.json()).toMatchObject({ client: "192.0.2.10" });
+  });
+
+  it("fails closed when the limiter is unavailable", async () => {
+    const { env } = environment({ limiterFailure: true });
+    const fetchAgent = agent();
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(503);
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("does not contact the agent after a limit rejection", async () => {
+    const { env } = environment({ allowed: false });
+    const fetchAgent = agent();
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(429);
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("maps agent 401 and 503 to the same response", async () => {
+    const { env } = environment();
+    const first = await handleRequest(request(), env, agent(401));
+    const second = await handleRequest(request(), env, agent(503));
+    expect(first.status).toBe(second.status);
+    expect(await first.text()).toBe(await second.text());
+  });
+
+  it("maps timeouts and invalid responses without internal text", async () => {
+    const { env } = environment();
+    const fetchAgent = vi.fn(async () => { throw new Error("redis://secret"); });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(await response.text()).toBe('{"error":"SCENARIO_UNAVAILABLE"}');
+  });
+
+  it("rejects foreign origins and marks every response no-store", async () => {
+    const { env } = environment();
+    const response = await handleRequest(request(undefined, {
+      headers: { Origin: "https://evil.example" },
+    }), env, agent());
+    expect(response.status).toBe(403);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
+  });
+
+  it("requires Cloudflare's attested client address", async () => {
+    const { env } = environment();
+    const response = await handleRequest(new Request(
+      "https://proxy.example/api/scenario",
+      { method: "POST", body: '{"scenario":"allow"}' },
+    ), env, agent());
+    expect(response.status).toBe(503);
+  });
+
+  it("exports the Worker fetch handler", async () => {
+    const { env } = environment();
+    const response = await worker.fetch(request({ scenario: "bad" }), env);
+    expect(response.status).toBe(400);
+  });
+
+  it("never includes the token in observed responses", async () => {
+    const { env } = environment({ limiterFailure: true });
+    const responses = [
+      await handleRequest(request({ scenario: "bad" }), env, agent()),
+      await handleRequest(request(), env, agent(401)),
+      await handleRequest(request(), env, agent()),
+    ];
+    for (const response of responses) {
+      expect(await response.text()).not.toContain(TOKEN);
+    }
+  });
+});
+
+describe("durable limiter", () => {
+  it("enforces one per-client count across separate instances", async () => {
+    const storage = new TestStorage();
+    const first = new ScenarioLimiter({ storage });
+    const second = new ScenarioLimiter({ storage });
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, (_, index) =>
+        (index % 2 ? first : second).fetch(limitRequest("same-client"))
+      ),
+    );
+    const results = await Promise.all(
+      responses.map((response) => response.json<{ allowed: boolean }>()),
+    );
+    expect(results.filter((result) => result.allowed).length).toBe(5);
+    expect(results.filter((result) => !result.allowed).length).toBe(1);
+  });
+
+  it("enforces the global budget across separate instances", async () => {
+    const storage = new TestStorage();
+    const first = new ScenarioLimiter({ storage });
+    const second = new ScenarioLimiter({ storage });
+    const responses = await Promise.all(
+      Array.from({ length: 21 }, (_, index) =>
+        (index % 2 ? first : second).fetch(limitRequest(`client-${index}`))
+      ),
+    );
+    const results = await Promise.all(
+      responses.map((response) => response.json<{ allowed: boolean }>()),
+    );
+    expect(results.filter((result) => result.allowed).length).toBe(20);
+    expect(results.filter((result) => !result.allowed).length).toBe(1);
+  });
+});

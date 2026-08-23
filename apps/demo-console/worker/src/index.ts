@@ -1,0 +1,199 @@
+const SCENARIOS = new Set(["allow", "over_limit"]);
+const WINDOW_MS = 60_000;
+const PER_CLIENT_LIMIT = 5;
+const GLOBAL_LIMIT = 20;
+const AGENT_TIMEOUT_MS = 15_000;
+
+interface RateLimitResult {
+  allowed: boolean;
+}
+
+interface LimiterStub {
+  fetch(request: Request): Promise<Response>;
+}
+
+interface Env {
+  AGENT_URL: string;
+  CONSOLE_ORIGIN: string;
+  RATIFY_DEMO_TOKEN: string;
+  SCENARIO_LIMITER: {
+    idFromName(name: string): unknown;
+    get(id: unknown): LimiterStub;
+  };
+}
+
+interface Storage {
+  transaction<T>(callback: (transaction: Transaction) => Promise<T>): Promise<T>;
+}
+
+interface Transaction {
+  get<T>(key: string): Promise<T | undefined>;
+  put<T>(key: string, value: T): Promise<void>;
+}
+
+interface DurableState {
+  storage: Storage;
+}
+
+export class ScenarioLimiter {
+  constructor(private readonly state: DurableState) {}
+
+  async fetch(request: Request): Promise<Response> {
+    try {
+      const payload = await request.json<unknown>();
+      if (
+        typeof payload !== "object" || payload === null ||
+        Object.keys(payload).length !== 2 ||
+        typeof (payload as Record<string, unknown>).client !== "string" ||
+        typeof (payload as Record<string, unknown>).now !== "number"
+      ) {
+        return Response.json({ allowed: false }, { status: 400 });
+      }
+      const client = (payload as { client: string }).client;
+      const now = (payload as { now: number }).now;
+      const allowed = await this.state.storage.transaction(async (transaction) => {
+        const global = trim(
+          await transaction.get<number[]>("global") ?? [], now
+        );
+        const clientKey = `client:${client}`;
+        const clientHits = trim(
+          await transaction.get<number[]>(clientKey) ?? [], now
+        );
+        if (global.length >= GLOBAL_LIMIT || clientHits.length >= PER_CLIENT_LIMIT) {
+          return false;
+        }
+        global.push(now);
+        clientHits.push(now);
+        await transaction.put("global", global);
+        await transaction.put(clientKey, clientHits);
+        return true;
+      });
+      return Response.json({ allowed });
+    } catch {
+      return Response.json({ allowed: false }, { status: 503 });
+    }
+  }
+}
+
+function trim(hits: number[], now: number): number[] {
+  return hits.filter((hit) => Number.isFinite(hit) && hit > now - WINDOW_MS);
+}
+
+export default {
+  fetch(request: Request, env: Env): Promise<Response> {
+    return handleRequest(request, env);
+  },
+};
+
+export async function handleRequest(
+  request: Request,
+  env: Env,
+  fetchAgent: typeof fetch = fetch,
+): Promise<Response> {
+  const origin = request.headers.get("Origin");
+  if (origin !== null && origin !== env.CONSOLE_ORIGIN) {
+    return reply({ error: "INVALID_ORIGIN" }, 403, env.CONSOLE_ORIGIN);
+  }
+
+  const url = new URL(request.url);
+  if (request.method === "OPTIONS" && url.pathname === "/api/scenario") {
+    return new Response(null, {
+      status: 204,
+      headers: responseHeaders(env.CONSOLE_ORIGIN),
+    });
+  }
+  if (request.method !== "POST" || url.pathname !== "/api/scenario") {
+    return reply({ error: "INVALID_REQUEST" }, 404, env.CONSOLE_ORIGIN);
+  }
+
+  const client = request.headers.get("CF-Connecting-IP");
+  if (!client) {
+    return reply({ error: "SCENARIO_UNAVAILABLE" }, 503, env.CONSOLE_ORIGIN);
+  }
+
+  let scenario: string;
+  try {
+    const raw = await request.text();
+    if (raw.length > 256) throw new Error();
+    const payload: unknown = JSON.parse(raw);
+    if (
+      typeof payload !== "object" || payload === null ||
+      Object.keys(payload).length !== 1 ||
+      typeof (payload as Record<string, unknown>).scenario !== "string" ||
+      !SCENARIOS.has((payload as { scenario: string }).scenario)
+    ) {
+      throw new Error();
+    }
+    scenario = (payload as { scenario: string }).scenario;
+  } catch {
+    return reply({ error: "INVALID_REQUEST" }, 400, env.CONSOLE_ORIGIN);
+  }
+
+  try {
+    const limiter = env.SCENARIO_LIMITER.get(
+      env.SCENARIO_LIMITER.idFromName("public-demo")
+    );
+    const limited = await limiter.fetch(new Request("https://limiter/check", {
+      method: "POST",
+      body: JSON.stringify({ client, now: Date.now() }),
+    }));
+    if (!limited.ok) throw new Error();
+    const result = await limited.json<RateLimitResult>();
+    if (result.allowed !== true) {
+      return reply({ error: "RATE_LIMITED" }, 429, env.CONSOLE_ORIGIN);
+    }
+  } catch {
+    return reply({ error: "SCENARIO_UNAVAILABLE" }, 503, env.CONSOLE_ORIGIN);
+  }
+
+  try {
+    const agent = await fetchAgent(`${env.AGENT_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Ratify-Demo-Token": `Bearer ${env.RATIFY_DEMO_TOKEN}`,
+      },
+      body: JSON.stringify({ message: scenario }),
+      signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
+    });
+    if (!agent.ok) throw new Error();
+    const payload: unknown = await agent.json();
+    if (typeof payload !== "object" || payload === null) throw new Error();
+    const value = payload as Record<string, unknown>;
+    if (
+      typeof value.decision !== "string" ||
+      typeof value.reason !== "string" ||
+      typeof value.handler_invocations !== "number"
+    ) {
+      throw new Error();
+    }
+    return reply({
+      correlation_id: crypto.randomUUID(),
+      scenario,
+      decision: value.decision,
+      reason: value.reason,
+      handler_invocations: value.handler_invocations,
+      timestamp: new Date().toISOString(),
+    }, 200, env.CONSOLE_ORIGIN);
+  } catch {
+    return reply({ error: "SCENARIO_UNAVAILABLE" }, 502, env.CONSOLE_ORIGIN);
+  }
+}
+
+function reply(body: object, status: number, origin: string): Response {
+  return Response.json(body, {
+    status,
+    headers: responseHeaders(origin),
+  });
+}
+
+function responseHeaders(origin: string): HeadersInit {
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy": "default-src 'none'",
+    "Vary": "Origin",
+  };
+}
