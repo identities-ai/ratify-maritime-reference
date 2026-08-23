@@ -1,7 +1,7 @@
 # Evidence matrix
 
-Status: Stage 2 receiver core, Stage 3 local MCP boundary, and Stage 4 local
-agent runtime complete; Maritime deployment pending.
+Status: Stage 2 receiver core, Stage 3 local MCP boundary, and Stage 4 agent
+runtime complete; Maritime deployment verified except for log-pipeline evidence.
 
 | Requirement | Evidence | Status |
 |---|---|---|
@@ -13,7 +13,8 @@ agent runtime complete; Maritime deployment pending.
 | T-001..T-012, T-015..T-016 | Receiver-core acceptance cases | Complete |
 | T-013..T-014 | Duplicate and oversized MCP carrier cases | Complete |
 | MCP-001..007 | Real Streamable HTTP flow, business-only schema, caller-bound reference | Complete locally |
-| MAR-001..006 | Maritime deployment record | Pending |
+| MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
+| MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
 | UI-001..013 | Executed console evidence and visual QA | Pending |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
@@ -65,8 +66,8 @@ agent runtime complete; Maritime deployment pending.
 - Command: `uv run --python 3.12 pytest -q -W error`
 - Result after deployment-issuance remediation: 70 collected, 70 passed, 0 skipped,
   0 xfailed, 0 failed, 0 errors
-- Current pre-deployment gate after Maritime compatibility work: 71 collected,
-  71 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
+- Current deployment gate after Maritime compatibility work: 72 collected,
+  72 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
@@ -100,6 +101,26 @@ agent runtime complete; Maritime deployment pending.
 - Principal-integrity gate: renewal rejects wrong-length keys, foreign issuer
   keys, changed identifiers, missing fields, and malformed encoding before
   creating any output
-- Maritime deployment status: receiver active from immutable GHCR digest;
-  agent blocked pending reviewed build-time delegation injection, so
-  MAR-001..006 remain incomplete
+- Maritime deployment status: both runtimes active from immutable GHCR digests;
+  live same-agent allow and over-limit denial verified below
+
+## Maritime deployment record
+
+- Date: 2026-08-23
+- Receiver runtime: `73de1f04-5fe3-43d7-afc7-715206e9241e`
+- Receiver source: `d85eebd9939410fb1d50c1114415916047b3384b`
+- Receiver image: `ghcr.io/identities-ai/ratify-maritime-receiver@sha256:c3670aedef6d12f6ebad87441a2d76249164b4219c0be0bc88abfc37f84ba120`
+- Agent runtime: `526e13bb-5a8c-47fc-94bf-96a0dc417983`
+- Agent source: `f3e173ede141ada02144add553318ca7d73645a0`
+- Agent image: `ghcr.io/identities-ai/ratify-maritime-agent@sha256:29b93714cd131a1cd4960631b46a64b80f52409d3503c7eff6629a14b2b6a42c`
+- Delegation SHA-256: `6fad6d3d3c7c115be5067321dddf706dae94b97b360ccd7d0ae4e919a4ec3e52`
+- Both health endpoints returned `{"status":"ok"}` after deployment and
+  receiver replacement
+- Live `over_limit`: `DENY_LIMIT_EXCEEDED`, `handler_invocations: 0`
+- Live `allow`: `ALLOW`, `handler_invocations: 1`
+- The zero count proves the earlier timed-out allow did not enter the handler
+- Maritime's rewritten private `Host` is normalized only for `10.0.0.0/8` on
+  proxy port 8080; other private ports and public IP hosts remain rejected
+- All three temporary Maritime API keys report `is_active: false`
+- MAR-005 remains open because Maritime returns stale logs from a superseded
+  runtime generation instead of current application output

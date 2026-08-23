@@ -81,10 +81,10 @@ private keys, proofs, or receiver policy.
 
 ## Residual risks
 
-The receiver is deployed on Maritime from an immutable public GHCR digest. The
-agent deployment remains incomplete, so the two-runtime Maritime validation is
-not yet proven. There is still no durable shared state, ingress body limit,
-distributed rate limiting, or production handler.
+The receiver and agent are deployed on Maritime from immutable public GHCR
+digests, and the live two-runtime allow and over-limit paths are verified.
+There is still no durable shared state, ingress body limit, distributed rate
+limiting, or production handler.
 
 Agent keys and transport credentials are supplied at runtime and excluded from
 the Docker build context. The demo and receiver transport tokens must be
@@ -98,6 +98,12 @@ The deployed Maritime gateway was observed on 2026-08-23 to remove the standard
 `Authorization` header before forwarding public requests. The demo and receiver
 boundaries therefore accept their separate credentials only through
 `X-Ratify-Demo-Token` and `X-Ratify-Caller-Token`, respectively.
+
+The gateway also rewrites `Host` to a changing private `10.0.0.0/8` address on
+its internal proxy port 8080. The Maritime receiver entrypoint normalizes only
+that bounded address-and-port form before FastMCP Host validation. Other ports,
+public IP addresses, and unlisted hostnames remain rejected. Current Maritime
+application logs are stale and cannot yet support deployed log-leak inspection.
 
 Demo delegations expire after seven days and are renewed on day five from the
 principal-controlled artifact. Renewal preserves the issuer, subject, and
