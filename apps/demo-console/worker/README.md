@@ -4,6 +4,9 @@ This Cloudflare Worker is the credential-holding boundary between the static
 demo console and the Maritime agent. It accepts only `POST /api/scenario` with
 exactly one of these bodies:
 
+Production endpoint: `https://maritime-api.ratifyprotocol.com/api/scenario`.
+The source-controlled deployment disables `workers.dev` and preview URLs.
+
 ```json
 {"scenario":"allow"}
 ```

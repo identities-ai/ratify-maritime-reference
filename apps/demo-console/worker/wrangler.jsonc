@@ -3,6 +3,14 @@
   "name": "ratify-maritime-demo-proxy",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "maritime-api.ratifyprotocol.com",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "AGENT_URL": "https://api.maritime.sh/a/526e13bb-5a8c-47fc-94bf-96a0dc417983",
     "CONSOLE_ORIGIN": "https://labs.ratifyprotocol.com"
