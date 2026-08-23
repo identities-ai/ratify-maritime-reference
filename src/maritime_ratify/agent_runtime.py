@@ -42,6 +42,7 @@ from .transport import CallerAuthenticator, CarrierDenied
 _SCENARIO_AMOUNTS = {"allow": 42_000, "over_limit": 50_100}
 _CHAT_RATE_LIMIT = 30
 _CHAT_RATE_WINDOW_SECONDS = 60
+_DEMO_TOKEN_HEADER = b"x-ratify-demo-token"
 
 
 @dataclass(frozen=True)
@@ -159,7 +160,12 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
 
     async def chat(request: Request) -> JSONResponse:
         try:
-            authenticator.authenticate(request.scope.get("headers", ()))
+            demo_headers = [
+                (b"authorization", value)
+                for name, value in request.scope.get("headers", ())
+                if name.lower() == _DEMO_TOKEN_HEADER
+            ]
+            authenticator.authenticate(demo_headers)
         except CarrierDenied:
             return JSONResponse({"response": "Unauthorized."}, status_code=401)
         if not limiter.allow():

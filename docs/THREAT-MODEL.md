@@ -94,6 +94,11 @@ check. The in-process `/chat` limiter is suitable only for the bounded public
 demonstration; it resets on restart and is not shared across replicas.
 Production exposure still requires ingress-level rate and body limits.
 
+The public Maritime gateway reserves the standard `Authorization` header for
+platform authentication. The demo boundary therefore accepts its separate
+credential only through `X-Ratify-Demo-Token`; receiver transport continues to
+use `Authorization` on the agent's outbound requests.
+
 Demo delegations expire after seven days and are renewed on day five from the
 principal-controlled artifact. Renewal preserves the issuer, subject, and
 authority bounds and replaces only the signed delegation in the agent runtime.
