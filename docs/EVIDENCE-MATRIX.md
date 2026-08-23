@@ -131,7 +131,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Date: 2026-08-23
 - Worker tests: 29 collected, 29 passed, 0 skipped, 0 failed
 - TypeScript: `tsc --noEmit` passed
-- Wrangler production dry run: 5.25 KiB upload, 1.79 KiB gzip
+- Wrangler production dry run: 5.69 KiB upload, 1.94 KiB gzip
 - Bindings: one Durable Object limiter, public agent URL, and public console
   origin; `RATIFY_DEMO_TOKEN` is configured separately with `wrangler secret`
 - Closure hardening: duplicate scenario keys reject as ambiguous, expired
@@ -143,13 +143,18 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
   endpoint, user store, analytics, or console UI
 - Hostile review: all PXY-001..024 and TP-001..021 passed at `a375038`; three
   low findings were remediated at `218957b`
-- Cloudflare identity: deployed by `chuks@identities.ai`
-- Worker URL: `https://ratify-maritime-demo-proxy.chuks-04d.workers.dev`
-- Worker version: `6240a107-b5e2-4169-aefe-b6426f4a77a0`
+- Cloudflare identity: deployed by `chuks@identities.ai` to account
+  `04d9033b2799de0b157e66c2ad977d43`
+- Custom domain: `https://maritime-api.ratifyprotocol.com/api/scenario`
+- Deployment source: `43a7935`; Worker version:
+  `045129f8-fe1f-42ff-8f82-8534989110f7`
+- Public DNS resolves through Cloudflare; the prior `workers.dev` route returns
+  HTTP 404, and preview URLs are disabled in source-controlled configuration
 - Secret inspection exposes only the binding name and type `secret_text`
 - Live invalid scenario: HTTP 400 `INVALID_REQUEST`
-- Live over-limit: HTTP 200, `DENY_LIMIT_EXCEEDED`, shared handler count 1
-- Live allow: HTTP 200, `ALLOW`, shared handler count 2
+- Live over-limit on the custom domain: HTTP 200, `DENY_LIMIT_EXCEEDED`, shared
+  handler count 2
+- Live allow on the custom domain: HTTP 200, `ALLOW`, shared handler count 3
 - Live four-request concurrent limiter check after two accepted calls: three
   HTTP 200 responses and one HTTP 429, exactly reaching the five-client budget
 - Foreign-origin preflight: HTTP 403; all observed responses carried
