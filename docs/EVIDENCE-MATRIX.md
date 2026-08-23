@@ -16,7 +16,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
 | UI-001..013 | Executed console evidence and visual QA | Pending |
-| PXY-001..024 | Demo proxy unit, type, and bundle gates | Implemented locally; deployment review pending |
+| PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Deployed; closure retest pending |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
 
@@ -141,5 +141,16 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
   minute, below the agent's thirty-per-minute fallback budget
 - Scope: exact scenario trigger and response projection only; no evidence read
   endpoint, user store, analytics, or console UI
-- Deployment status: not deployed; Cloudflare account verification and hostile
-  proxy review remain required
+- Hostile review: all PXY-001..024 and TP-001..021 passed at `a375038`; three
+  low findings were remediated at `218957b`
+- Cloudflare identity: deployed by `chuks@identities.ai`
+- Worker URL: `https://ratify-maritime-demo-proxy.chuks-04d.workers.dev`
+- Worker version: `6240a107-b5e2-4169-aefe-b6426f4a77a0`
+- Secret inspection exposes only the binding name and type `secret_text`
+- Live invalid scenario: HTTP 400 `INVALID_REQUEST`
+- Live over-limit: HTTP 200, `DENY_LIMIT_EXCEEDED`, shared handler count 1
+- Live allow: HTTP 200, `ALLOW`, shared handler count 2
+- Live four-request concurrent limiter check after two accepted calls: three
+  HTTP 200 responses and one HTTP 429, exactly reaching the five-client budget
+- Foreign-origin preflight: HTTP 403; all observed responses carried
+  `Cache-Control: no-store`
