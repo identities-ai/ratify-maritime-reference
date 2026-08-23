@@ -34,6 +34,7 @@ jobs:
           RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
         run: |
           docker build \
+            --no-cache \
             --secret id=ratify_delegation_b64,env=RATIFY_DEPLOYMENT_DELEGATION_B64 \
             --build-arg RATIFY_DELEGATION_SHA256="$DELEGATION_SHA256" \
             --label org.opencontainers.image.source=https://github.com/identities-ai/ratify-maritime-reference \
