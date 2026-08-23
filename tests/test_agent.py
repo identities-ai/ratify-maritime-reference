@@ -49,14 +49,14 @@ async def _exercise_interceptor():
         name="create_work_order",
         args=args,
         server_name="receiver",
-        headers={"Authorization": "Bearer agent-secret"},
+        headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
     )
     assert await interceptor(request, handler) == "ok"
     handled = seen["handled"]
     assert handled.args == args
     assert set(handled.args) == set(args)
     assert handled.headers == {
-        "Authorization": "Bearer agent-secret",
+        "X-Ratify-Caller-Token": "Bearer agent-secret",
         "X-Ratify-Proof-Reference": "opaque-reference",
     }
     assert seen["proof_size"] > 10_000
@@ -105,7 +105,7 @@ async def _exercise_interceptor_snapshot():
         name="create_work_order",
         args=args,
         server_name="receiver",
-        headers={"Authorization": "Bearer agent-secret"},
+        headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
     )
     task = asyncio.create_task(interceptor(request, handler))
     await challenge_started.wait()

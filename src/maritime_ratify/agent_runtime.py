@@ -201,7 +201,7 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
 async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]:
     arguments = _scenario_arguments(scenario)
     model = _model(settings, arguments)
-    headers = {"Authorization": f"Bearer {settings.receiver_token}"}
+    headers = {"X-Ratify-Caller-Token": f"Bearer {settings.receiver_token}"}
     connections = {
         "receiver": {
             "transport": "streamable_http",
