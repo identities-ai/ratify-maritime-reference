@@ -4,6 +4,7 @@ import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
+  LABS_ROUTER_TOKEN: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -11,6 +12,28 @@ interface Env {
       };
     };
   };
+}
+
+const PROVIDER_HOST = "ratify-maritime-lab.chuksy0x01.chatgpt.site";
+const ROUTE_HEADER = "X-Ratify-Labs-Route";
+
+async function hasValidRouteCredential(request: Request, secret: string): Promise<boolean> {
+  if (!secret || secret.length < 32) return false;
+  const actual = request.headers.get(ROUTE_HEADER);
+  if (!actual || actual.includes(",")) return false;
+  const expected = `Bearer ${secret}`;
+  const encoder = new TextEncoder();
+  const [actualDigest, expectedDigest] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(actual)),
+    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
+  ]);
+  const actualBytes = new Uint8Array(actualDigest);
+  const expectedBytes = new Uint8Array(expectedDigest);
+  let difference = 0;
+  for (let index = 0; index < actualBytes.length; index += 1) {
+    difference |= actualBytes[index] ^ expectedBytes[index];
+  }
+  return difference === 0;
 }
 
 interface ExecutionContext {
@@ -27,11 +50,9 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    if (
-      url.hostname !== "labs.ratifyprotocol.com" &&
-      url.hostname !== "localhost" &&
-      url.hostname !== "127.0.0.1"
-    ) {
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    const routed = url.hostname === PROVIDER_HOST && await hasValidRouteCredential(request, env.LABS_ROUTER_TOKEN);
+    if (!local && !routed) {
       return new Response("Not found", {
         status: 404,
         headers: {
@@ -41,7 +62,7 @@ const worker = {
       });
     }
 
-    if (url.pathname === "/_vinext/image") {
+    if (url.pathname === "/maritime/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
         fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),

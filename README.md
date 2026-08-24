@@ -121,4 +121,5 @@ Planned deployment:
 - `apps/agent/`: LangChain agent runtime built by the root `Dockerfile`
 - `apps/receiver/`: Ratify-verifying MCP receiver in a second isolated runtime
 - `apps/demo-console/`: reviewed proxy followed by a standalone Ratify-branded
-  UI deployed independently at `labs.ratifyprotocol.com`
+  UI published through the shared Ratify Labs catalog at
+  `labs.ratifyprotocol.com/maritime`
