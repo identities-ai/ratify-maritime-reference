@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 const API = "https://maritime-api.ratifyprotocol.com/api/scenario";
@@ -56,7 +57,7 @@ export default function Home() {
     <main>
       <header className="nav">
         <a className="brand" href="https://labs.ratifyprotocol.com/" aria-label="Ratify Labs home">
-          <img src="/maritime/ratify-logo.png" alt="" />
+          <Image src="/maritime/ratify-logo.png" alt="" width={28} height={28} unoptimized />
           <span>RATIFY <b>LABS</b></span>
         </a>
         <span className="live"><i /> Live reference</span>
