@@ -45,7 +45,7 @@ export default function Home() {
     }
   }
 
-  const requested = result?.scenario === "over_limit" ? "$750.00 USD" : "$420.00 USD";
+  const requested = result?.scenario === "over_limit" ? "$501.00 USD" : "$420.00 USD";
   const allowed = result?.decision === "ALLOW";
 
   return (
@@ -79,16 +79,25 @@ export default function Home() {
           <button onClick={() => run("over_limit")} disabled={pending !== null}>
             <span className="scenario-tag">ABOVE SIGNED LIMIT</span>
             <strong>Purchase safety equipment</strong>
-            <span className="money">$750.00 <small>USD</small></span>
+            <span className="money">$501.00 <small>USD</small></span>
             <span className="button-action">{pending === "over_limit" ? "Running…" : "Run denied scenario →"}</span>
           </button>
         </div>
 
         {(pending || result || error) && <div className="execution" aria-live="polite">
           <div className="stages" aria-label="Executed request stages">
-            {stages.map(([number, name, detail], index) => <div className={`stage ${result || error ? "done" : index === 0 ? "active" : ""}`} key={name}>
+            {stages.map(([number, name, detail], index) => {
+              const state = result
+                ? index < 4 || (index === 4 && result.decision === "ALLOW")
+                  ? "done"
+                  : "blocked"
+                : pending && index === 0
+                  ? "active"
+                  : "";
+              return <div className={`stage ${state}`} key={name}>
               <span className="stage-number">{number}</span><div><strong>{name}</strong><small>{detail}</small></div>
-            </div>)}
+              </div>;
+            })}
           </div>
           {pending && <div className="result pending"><span className="spinner" />Executing the signed request…</div>}
           {error && <div className="result error" role="alert"><b>Unavailable</b><span>{error}</span></div>}
