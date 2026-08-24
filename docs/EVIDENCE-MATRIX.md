@@ -164,18 +164,20 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 ## Demo console deployment checkpoint
 
 - Date: 2026-08-24
-- Source revision: `3034a1c`
+- Source revision: `8f0e2f9`
 - Console tests: 2 collected, 2 passed, 0 skipped, 0 failed
 - Production dependency audit: 0 vulnerabilities
-- Public URL: `https://labs.ratifyprotocol.com`
-- Hosting version: 3; custom-domain, provider, and TLS states all active
+- Public URL: `https://labs.ratifyprotocol.com/maritime`
+- Hosting version: 4; served through the secret-bound Ratify Labs route
 - The provider hostname
   `https://ratify-maritime-lab.chuksy0x01.chatgpt.site` returns HTTP 404 from
   the application boundary; localhost remains available for development
 - The denied scenario displays the executed `$501.00 USD` request beside the
   signed `$500.00 USD` bound and marks the protected handler as not entered
+- The Ratify Labs and Maritime provider hostnames both return HTTP 404 to
+  direct requests; the routed page and its `/maritime/_next/` assets return 200
 - Live over-limit from the production console origin: HTTP 200,
-  `DENY_LIMIT_EXCEEDED`, shared handler count 4
+  `DENY_LIMIT_EXCEEDED`, shared handler count 5
 - Live allow from the production console origin: HTTP 200, `ALLOW`, shared
-  handler count 5
+  handler count 6
 - Desktop and mobile closure renders remain subject to independent review
