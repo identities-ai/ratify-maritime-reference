@@ -23,6 +23,8 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /\$420\.00/);
   assert.match(html, /\$501\.00/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/);
+  assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
+  assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
 
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /Shared receiver handler count/);
