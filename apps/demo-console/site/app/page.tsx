@@ -18,6 +18,9 @@ type Result = {
   decision: string;
   reason: string;
   handler_invocations: number;
+  requested_amount_minor: number;
+  authorized_max_amount_minor: number;
+  currency: string;
   timestamp: string;
 };
 
@@ -45,15 +48,16 @@ export default function Home() {
     }
   }
 
-  const requested = result?.scenario === "over_limit" ? "$501.00 USD" : "$420.00 USD";
+  const money = (minor: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100) + ` ${currency}`;
+  const requested = result ? money(result.requested_amount_minor, result.currency) : "";
   const allowed = result?.decision === "ALLOW";
 
   return (
     <main>
       <header className="nav">
-        <a className="brand" href="https://ratifyprotocol.com" aria-label="Ratify Protocol home">
+        <a className="brand" href="https://labs.ratifyprotocol.com/" aria-label="Ratify Labs home">
           <img src="/maritime/ratify-logo.png" alt="" />
-          <span>RATIFY <b>PROTOCOL</b></span>
+          <span>RATIFY <b>LABS</b></span>
         </a>
         <span className="live"><i /> Live reference</span>
       </header>
@@ -106,7 +110,7 @@ export default function Home() {
             <div className="decision-copy"><p>AUTHORITY RESULT</p><h3>{result.decision}</h3><span>{allowed ? "Authorized request reached the handler." : "Signed limit enforced before handler entry."}</span></div>
             <dl>
               <div><dt>Requested</dt><dd>{requested}</dd></div>
-              <div><dt>Authorized bound</dt><dd>≤ $500.00 USD</dd></div>
+              <div><dt>Authorized bound</dt><dd>≤ {money(result.authorized_max_amount_minor, result.currency)}</dd></div>
               <div><dt>Receiver reason</dt><dd><code>{result.reason}</code></dd></div>
               <div><dt>Shared receiver handler count</dt><dd>{result.handler_invocations}</dd></div>
             </dl>

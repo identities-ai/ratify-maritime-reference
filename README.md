@@ -1,6 +1,6 @@
 # Ratify Maritime Reference
 
-Planned open reference for an authority-aware LangChain agent running on
+Open reference for an authority-aware LangChain agent running on
 Maritime and acting through a public MCP tool interceptor against a separately
 deployed Ratify-verifying Streamable HTTP MCP receiver.
 
@@ -13,7 +13,10 @@ oversized carriers, real Streamable HTTP MCP discovery and execution, and the
 LangChain authority-interceptor seam. Stage 4 now includes a deterministic
 LangChain agent runtime and an optional production-model configuration; image
 verification now passes locally and across two deployed Maritime runtimes; the
-public demo console is deployed and awaiting final visual closure review.
+public demo console is live at `https://labs.ratifyprotocol.com/maritime`.
+
+Licensed under Apache-2.0. This reference is not a Maritime endorsement or
+partnership claim.
 
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
 

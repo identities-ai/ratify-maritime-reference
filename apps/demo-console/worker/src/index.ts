@@ -3,6 +3,10 @@ const WINDOW_MS = 60_000;
 const PER_CLIENT_LIMIT = 5;
 const GLOBAL_LIMIT = 20;
 const AGENT_TIMEOUT_MS = 15_000;
+const SCENARIO_FACTS = {
+  allow: { requested_amount_minor: 42_000, currency: "USD", authorized_max_amount_minor: 50_000 },
+  over_limit: { requested_amount_minor: 50_100, currency: "USD", authorized_max_amount_minor: 50_000 },
+} as const;
 
 interface RateLimitResult {
   allowed: boolean;
@@ -102,7 +106,7 @@ export async function handleRequest(
   fetchAgent: typeof fetch = fetch,
 ): Promise<Response> {
   const origin = request.headers.get("Origin");
-  if (origin !== null && origin !== env.CONSOLE_ORIGIN) {
+  if (origin !== env.CONSOLE_ORIGIN) {
     return reply({ error: "INVALID_ORIGIN" }, 403, env.CONSOLE_ORIGIN);
   }
 
@@ -184,6 +188,7 @@ export async function handleRequest(
       decision: value.decision,
       reason: value.reason,
       handler_invocations: value.handler_invocations,
+      ...SCENARIO_FACTS[scenario as keyof typeof SCENARIO_FACTS],
       timestamp: new Date().toISOString(),
     }, 200, env.CONSOLE_ORIGIN);
   } catch {
