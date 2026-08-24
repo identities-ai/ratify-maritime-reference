@@ -25,12 +25,16 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/);
   assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
   assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
+  assert.match(html, /RATIFY[\s\S]*LABS/);
+  assert.match(html, /rel="icon"[^>]*href="\/maritime\/favicon\.svg"/);
+  assert.match(html, /property="og:image"[^>]*content="https:\/\/labs\.ratifyprotocol\.com\/maritime\/og\.png"/);
 
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /Shared receiver handler count/);
   assert.match(page, /receiver-wide counter shared by every demo visitor/);
   assert.match(page, /index === 4 && result\.decision === "ALLOW"/);
-  assert.match(page, /\$501\.00 USD/);
+  assert.match(page, /requested_amount_minor/);
+  assert.match(page, /authorized_max_amount_minor/);
   assert.doesNotMatch(page, /\$750\.00/);
 });
 

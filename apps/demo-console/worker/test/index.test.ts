@@ -103,9 +103,10 @@ describe("scenario proxy", () => {
       handler_invocations: 7,
     });
     expect(Object.keys(body).sort()).toEqual([
-      "correlation_id", "decision", "handler_invocations", "reason", "scenario",
-      "timestamp",
+      "authorized_max_amount_minor", "correlation_id", "currency", "decision",
+      "handler_invocations", "reason", "requested_amount_minor", "scenario", "timestamp",
     ]);
+    expect(body).toMatchObject({ requested_amount_minor: scenario === "allow" ? 42_000 : 50_100, authorized_max_amount_minor: 50_000, currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
     expect(init.body).toBe(JSON.stringify({ message: scenario }));
     expect(init.headers).toEqual({
@@ -167,7 +168,7 @@ describe("scenario proxy", () => {
     const { env, limiter } = environment();
     const fetchAgent = agent();
     const response = await handleRequest(new Request(
-      "https://proxy.example/api/scenario", { method }
+      "https://proxy.example/api/scenario", { method, headers: { Origin: ORIGIN } }
     ), env, fetchAgent);
     expect(response.status).toBe(404);
     expect(limiter).not.toHaveBeenCalled();
@@ -190,7 +191,7 @@ describe("scenario proxy", () => {
   it("rejects other paths", async () => {
     const { env, limiter } = environment();
     const response = await handleRequest(new Request(
-      "https://proxy.example/other", { method: "POST" }
+      "https://proxy.example/other", { method: "POST", headers: { Origin: ORIGIN } }
     ), env, agent());
     expect(response.status).toBe(404);
     expect(limiter).not.toHaveBeenCalled();
@@ -247,11 +248,20 @@ describe("scenario proxy", () => {
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
   });
 
+  it("rejects a missing origin before side effects", async () => {
+    const { env, limiter } = environment();
+    const fetchAgent = agent();
+    const response = await handleRequest(new Request("https://proxy.example/api/scenario", { method: "POST", headers: { "CF-Connecting-IP": "192.0.2.10" }, body: '{"scenario":"allow"}' }), env, fetchAgent);
+    expect(response.status).toBe(403);
+    expect(limiter).not.toHaveBeenCalled();
+    expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
   it("requires Cloudflare's attested client address", async () => {
     const { env } = environment();
     const response = await handleRequest(new Request(
       "https://proxy.example/api/scenario",
-      { method: "POST", body: '{"scenario":"allow"}' },
+      { method: "POST", headers: { Origin: ORIGIN }, body: '{"scenario":"allow"}' },
     ), env, agent());
     expect(response.status).toBe(503);
   });
