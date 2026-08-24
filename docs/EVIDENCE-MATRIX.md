@@ -15,7 +15,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MCP-001..007 | Real Streamable HTTP flow, business-only schema, caller-bound reference | Complete locally |
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
-| UI-001..013 | Executed console evidence and visual QA | Pending |
+| UI-001..013 | Executed console evidence and visual QA | Deployed; closure retest pending |
 | PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
@@ -160,3 +160,22 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
   HTTP 200 responses and one HTTP 429, exactly reaching the five-client budget
 - Foreign-origin preflight: HTTP 403; all observed responses carried
   `Cache-Control: no-store`
+
+## Demo console deployment checkpoint
+
+- Date: 2026-08-24
+- Source revision: `3034a1c`
+- Console tests: 2 collected, 2 passed, 0 skipped, 0 failed
+- Production dependency audit: 0 vulnerabilities
+- Public URL: `https://labs.ratifyprotocol.com`
+- Hosting version: 3; custom-domain, provider, and TLS states all active
+- The provider hostname
+  `https://ratify-maritime-lab.chuksy0x01.chatgpt.site` returns HTTP 404 from
+  the application boundary; localhost remains available for development
+- The denied scenario displays the executed `$501.00 USD` request beside the
+  signed `$500.00 USD` bound and marks the protected handler as not entered
+- Live over-limit from the production console origin: HTTP 200,
+  `DENY_LIMIT_EXCEEDED`, shared handler count 4
+- Live allow from the production console origin: HTTP 200, `ALLOW`, shared
+  handler count 5
+- Desktop and mobile closure renders remain subject to independent review

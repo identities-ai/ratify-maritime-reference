@@ -13,7 +13,7 @@ oversized carriers, real Streamable HTTP MCP discovery and execution, and the
 LangChain authority-interceptor seam. Stage 4 now includes a deterministic
 LangChain agent runtime and an optional production-model configuration; image
 verification now passes locally and across two deployed Maritime runtimes; the
-public demo console remains pending.
+public demo console is deployed and awaiting final visual closure review.
 
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
 
@@ -121,4 +121,4 @@ Planned deployment:
 - `apps/agent/`: LangChain agent runtime built by the root `Dockerfile`
 - `apps/receiver/`: Ratify-verifying MCP receiver in a second isolated runtime
 - `apps/demo-console/`: reviewed proxy followed by a standalone Ratify-branded
-  UI deployed independently at `labs.ratifyprotocol.com/maritime`
+  UI deployed independently at `labs.ratifyprotocol.com`
