@@ -52,7 +52,7 @@ export default function Home() {
     <main>
       <header className="nav">
         <a className="brand" href="https://ratifyprotocol.com" aria-label="Ratify Protocol home">
-          <img src="/ratify-logo.png" alt="" />
+          <img src="/maritime/ratify-logo.png" alt="" />
           <span>RATIFY <b>PROTOCOL</b></span>
         </a>
         <span className="live"><i /> Live reference</span>
