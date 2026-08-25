@@ -178,7 +178,13 @@ export async function handleRequest(
       typeof value.requested_amount_minor !== "number" ||
       typeof value.authorized_max_amount_minor !== "number" ||
       typeof value.currency !== "string" ||
-      typeof value.authorized_currency !== "string"
+      typeof value.authorized_currency !== "string" ||
+      typeof value.delegation_scope !== "string" ||
+      typeof value.delegation_resource !== "string" ||
+      typeof value.delegation_category !== "string" ||
+      typeof value.delegation_audience !== "string" ||
+      typeof value.delegation_issued_at !== "number" ||
+      typeof value.delegation_expires_at !== "number"
     ) {
       throw new Error();
     }
@@ -192,6 +198,12 @@ export async function handleRequest(
       authorized_max_amount_minor: value.authorized_max_amount_minor,
       currency: value.currency,
       authorized_currency: value.authorized_currency,
+      delegation_scope: value.delegation_scope,
+      delegation_resource: value.delegation_resource,
+      delegation_category: value.delegation_category,
+      delegation_audience: value.delegation_audience,
+      delegation_issued_at: value.delegation_issued_at,
+      delegation_expires_at: value.delegation_expires_at,
       timestamp: new Date().toISOString(),
     }, 200, env.CONSOLE_ORIGIN);
   } catch {
