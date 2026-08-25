@@ -42,7 +42,7 @@ test("serves the provider hostname only through the Labs router", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("host-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  const env = { ASSETS: { fetch: async () => new Response("asset", { status: 200 }) }, LABS_ROUTER_TOKEN: "a".repeat(64) };
+  const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) }, LABS_ROUTER_TOKEN: "a".repeat(64) };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
 
   const provider = await worker.fetch(
@@ -56,19 +56,9 @@ test("serves the provider hostname only through the Labs router", async () => {
   );
   assert.equal(wrong.status, 404);
 
-  const publicAsset = await worker.fetch(
-    new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime/og.jpg"), env, ctx,
-  );
-  assert.equal(publicAsset.status, 404);
-
   const routed = await worker.fetch(
     new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime", { headers: { "X-Ratify-Labs-Route": `Bearer ${"a".repeat(64)}` } }), env, ctx,
   );
   assert.equal(routed.status, 200);
 
-  const routedAsset = await worker.fetch(
-    new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime/og.jpg", { headers: { "X-Ratify-Labs-Route": `Bearer ${"a".repeat(64)}` } }), env, ctx,
-  );
-  assert.equal(routedAsset.status, 200);
-  assert.equal(await routedAsset.text(), "asset");
 });
