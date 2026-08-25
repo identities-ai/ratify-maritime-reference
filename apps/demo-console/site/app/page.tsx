@@ -29,7 +29,7 @@ type Result = {
 export default function Home() {
   const [pending, setPending] = useState<Scenario | null>(null);
   const [result, setResult] = useState<Result | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ title: string; body: string } | null>(null);
 
   async function run(scenario: Scenario) {
     setPending(scenario);
@@ -42,13 +42,19 @@ export default function Home() {
         body: JSON.stringify({ scenario }),
       });
       if (response.status === 429) {
-        setError("Demo limit reached — try again in a minute.");
+        setError({
+          title: "Demo limit reached",
+          body: "Try again in a minute.",
+        });
         return;
       }
       if (!response.ok) throw new Error();
       setResult(await response.json() as Result);
     } catch {
-      setError("The live scenario is temporarily unavailable. Please try again shortly.");
+      setError({
+        title: "Unavailable",
+        body: "The live scenario is temporarily unavailable. Please try again shortly.",
+      });
     } finally {
       setPending(null);
     }
@@ -110,7 +116,7 @@ export default function Home() {
             })}
           </div>
           {pending && <div className="result pending"><span className="spinner" />Executing the signed request…</div>}
-          {error && <div className="result error" role="alert"><b>Unavailable</b><span>{error}</span></div>}
+          {error && <div className="result error" role="alert"><b>{error.title}</b><span>{error.body}</span></div>}
           {result && <div className={`result ${allowed ? "allow" : "deny"}`} role="status">
             <div className="decision-icon" aria-hidden="true">{allowed ? "✓" : "×"}</div>
             <div className="decision-copy"><p>AUTHORITY RESULT</p><h3>{result.decision}</h3><span>{allowed ? "Authorized request reached the handler." : "Signed limit enforced before handler entry."}</span></div>

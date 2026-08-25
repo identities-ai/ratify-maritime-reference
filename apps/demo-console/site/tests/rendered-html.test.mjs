@@ -35,6 +35,9 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(page, /index === 4 && result\.decision === "ALLOW"/);
   assert.match(page, /requested_amount_minor/);
   assert.match(page, /authorized_max_amount_minor/);
+  assert.match(page, /title: "Demo limit reached"/);
+  assert.match(page, /title: "Unavailable"/);
+  assert.doesNotMatch(page, /<b>Unavailable<\/b>/);
   assert.doesNotMatch(page, /\$750\.00/);
 });
 
