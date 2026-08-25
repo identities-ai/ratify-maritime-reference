@@ -14,6 +14,7 @@ const usePolling = process.env.VITE_USE_POLLING === "1";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  assets: { binding: "ASSETS", run_worker_first: true },
   d1_databases: d1
     ? [
         {

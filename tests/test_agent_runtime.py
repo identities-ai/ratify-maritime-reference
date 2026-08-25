@@ -153,9 +153,15 @@ async def _exercise_real_agent_boundary():
         denied = await run_scenario(settings, "over_limit")
         assert allowed["decision"] == "ALLOW"
         assert allowed["handler_invocations"] == 1
+        assert allowed["requested_amount_minor"] == 42_000
+        assert allowed["authorized_max_amount_minor"] == 50_000
+        assert allowed["currency"] == "USD"
+        assert allowed["authorized_currency"] == "USD"
         assert denied["decision"] == "DENY"
         assert denied["reason"] == "DENY_LIMIT_EXCEEDED"
         assert denied["handler_invocations"] == 1
+        assert denied["requested_amount_minor"] == 50_100
+        assert denied["authorized_max_amount_minor"] == 50_000
     finally:
         server.should_exit = True
         thread.join(timeout=5)

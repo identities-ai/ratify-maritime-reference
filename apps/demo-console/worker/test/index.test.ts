@@ -81,6 +81,10 @@ function agent(status = 200, extra: object = {}) {
       decision: "ALLOW",
       reason: "ALLOW",
       handler_invocations: 7,
+      requested_amount_minor: 42_000,
+      authorized_max_amount_minor: 50_000,
+      currency: "USD",
+      authorized_currency: "USD",
       private_key: "must-be-dropped",
       ...extra,
     }, { status })
@@ -91,7 +95,7 @@ describe("scenario proxy", () => {
   it.each(["allow", "over_limit"])("constructs and projects %s", async (scenario) => {
     const { env } = environment();
     const fetchAgent = agent(200, scenario === "over_limit" ? {
-      decision: "DENY", reason: "DENY_LIMIT_EXCEEDED",
+      decision: "DENY", reason: "DENY_LIMIT_EXCEEDED", requested_amount_minor: 50_100,
     } : {});
     const response = await handleRequest(request({ scenario }), env, fetchAgent);
     const body = await response.json<Record<string, unknown>>();
@@ -103,15 +107,31 @@ describe("scenario proxy", () => {
       handler_invocations: 7,
     });
     expect(Object.keys(body).sort()).toEqual([
-      "authorized_max_amount_minor", "correlation_id", "currency", "decision",
+      "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decision",
       "handler_invocations", "reason", "requested_amount_minor", "scenario", "timestamp",
     ]);
-    expect(body).toMatchObject({ requested_amount_minor: scenario === "allow" ? 42_000 : 50_100, authorized_max_amount_minor: 50_000, currency: "USD" });
+    expect(body).toMatchObject({ requested_amount_minor: scenario === "allow" ? 42_000 : 50_100, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
     expect(init.body).toBe(JSON.stringify({ message: scenario }));
     expect(init.headers).toEqual({
       "Content-Type": "application/json",
       "X-Ratify-Demo-Token": `Bearer ${TOKEN}`,
+    });
+  });
+
+  it("projects execution facts from the agent rather than local policy constants", async () => {
+    const { env } = environment();
+    const response = await handleRequest(request(), env, agent(200, {
+      requested_amount_minor: 12_345,
+      authorized_max_amount_minor: 23_456,
+      currency: "CAD",
+      authorized_currency: "EUR",
+    }));
+    expect(await response.json()).toMatchObject({
+      requested_amount_minor: 12_345,
+      authorized_max_amount_minor: 23_456,
+      currency: "CAD",
+      authorized_currency: "EUR",
     });
   });
 

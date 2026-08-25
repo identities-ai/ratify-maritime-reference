@@ -3,10 +3,6 @@ const WINDOW_MS = 60_000;
 const PER_CLIENT_LIMIT = 5;
 const GLOBAL_LIMIT = 20;
 const AGENT_TIMEOUT_MS = 15_000;
-const SCENARIO_FACTS = {
-  allow: { requested_amount_minor: 42_000, currency: "USD", authorized_max_amount_minor: 50_000 },
-  over_limit: { requested_amount_minor: 50_100, currency: "USD", authorized_max_amount_minor: 50_000 },
-} as const;
 
 interface RateLimitResult {
   allowed: boolean;
@@ -178,7 +174,11 @@ export async function handleRequest(
     if (
       typeof value.decision !== "string" ||
       typeof value.reason !== "string" ||
-      typeof value.handler_invocations !== "number"
+      typeof value.handler_invocations !== "number" ||
+      typeof value.requested_amount_minor !== "number" ||
+      typeof value.authorized_max_amount_minor !== "number" ||
+      typeof value.currency !== "string" ||
+      typeof value.authorized_currency !== "string"
     ) {
       throw new Error();
     }
@@ -188,7 +188,10 @@ export async function handleRequest(
       decision: value.decision,
       reason: value.reason,
       handler_invocations: value.handler_invocations,
-      ...SCENARIO_FACTS[scenario as keyof typeof SCENARIO_FACTS],
+      requested_amount_minor: value.requested_amount_minor,
+      authorized_max_amount_minor: value.authorized_max_amount_minor,
+      currency: value.currency,
+      authorized_currency: value.authorized_currency,
       timestamp: new Date().toISOString(),
     }, 200, env.CONSOLE_ORIGIN);
   } catch {

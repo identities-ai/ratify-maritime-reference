@@ -41,6 +41,13 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+function isPublicAsset(pathname: string): boolean {
+  return pathname === "/maritime/favicon.svg" ||
+    pathname === "/maritime/og.jpg" ||
+    pathname === "/maritime/ratify-logo.png" ||
+    pathname.startsWith("/maritime/_next/static/");
+}
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -60,6 +67,14 @@ const worker = {
           "Content-Security-Policy": "default-src 'none'",
         },
       });
+    }
+
+    if (isPublicAsset(url.pathname)) {
+      const asset = await env.ASSETS.fetch(request);
+      const headers = new Headers(asset.headers);
+      headers.delete("Set-Cookie");
+      headers.set("X-Content-Type-Options", "nosniff");
+      return new Response(asset.body, { status: asset.status, headers });
     }
 
     if (url.pathname === "/maritime/_vinext/image") {
