@@ -1,6 +1,17 @@
 # Ratify Maritime Reference
 
-Open reference for an authority-aware LangChain agent running on
+This is the complete implementation repository for the live
+[Maritime × Ratify lab](https://labs.ratifyprotocol.com/maritime). It is not the
+shared Labs catalog or a marketing-only demonstration.
+
+The repository contains the LangChain agent, separately deployed MCP receiver,
+Ratify authorization boundary, deployment images, issuance tooling, Cloudflare
+scenario proxy, public console, adversarial tests, threat model, and deployment
+evidence. The separate
+[`identities-ai/ratify-labs`](https://github.com/identities-ai/ratify-labs)
+repository contains only the shared catalog and closed routing layer.
+
+This open reference implements an authority-aware LangChain agent running on
 Maritime and acting through a public MCP tool interceptor against a separately
 deployed Ratify-verifying Streamable HTTP MCP receiver.
 
