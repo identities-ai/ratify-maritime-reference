@@ -157,11 +157,18 @@ async def _exercise_real_agent_boundary():
         assert allowed["authorized_max_amount_minor"] == 50_000
         assert allowed["currency"] == "USD"
         assert allowed["authorized_currency"] == "USD"
+        assert allowed["delegation_scope"] == "custom:work_order:create"
+        assert allowed["delegation_resource"] == "site:warehouse-seattle-01"
+        assert allowed["delegation_category"] == "electrical"
+        assert allowed["delegation_audience"] == "maritime-ratify-demo-receiver"
+        assert allowed["delegation_issued_at"] == authority.delegation.issued_at
+        assert allowed["delegation_expires_at"] == authority.delegation.expires_at
         assert denied["decision"] == "DENY"
         assert denied["reason"] == "DENY_LIMIT_EXCEEDED"
         assert denied["handler_invocations"] == 1
         assert denied["requested_amount_minor"] == 50_100
         assert denied["authorized_max_amount_minor"] == 50_000
+        assert denied["delegation_expires_at"] == authority.delegation.expires_at
     finally:
         server.should_exit = True
         thread.join(timeout=5)

@@ -85,6 +85,12 @@ function agent(status = 200, extra: object = {}) {
       authorized_max_amount_minor: 50_000,
       currency: "USD",
       authorized_currency: "USD",
+      delegation_scope: "custom:work_order:create",
+      delegation_resource: "site:warehouse-seattle-01",
+      delegation_category: "electrical",
+      delegation_audience: "maritime-ratify-demo-receiver",
+      delegation_issued_at: 1_800_000_000,
+      delegation_expires_at: 1_800_604_800,
       private_key: "must-be-dropped",
       ...extra,
     }, { status })
@@ -108,7 +114,9 @@ describe("scenario proxy", () => {
     });
     expect(Object.keys(body).sort()).toEqual([
       "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decision",
-      "handler_invocations", "reason", "requested_amount_minor", "scenario", "timestamp",
+      "delegation_audience", "delegation_category", "delegation_expires_at", "delegation_issued_at",
+      "delegation_resource", "delegation_scope", "handler_invocations", "reason",
+      "requested_amount_minor", "scenario", "timestamp",
     ]);
     expect(body).toMatchObject({ requested_amount_minor: scenario === "allow" ? 42_000 : 50_100, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
@@ -126,12 +134,24 @@ describe("scenario proxy", () => {
       authorized_max_amount_minor: 23_456,
       currency: "CAD",
       authorized_currency: "EUR",
+      delegation_scope: "custom:invoice:approve",
+      delegation_resource: "account:test",
+      delegation_category: "invoice",
+      delegation_audience: "verifier-test",
+      delegation_issued_at: 1_900_000_000,
+      delegation_expires_at: 1_900_086_400,
     }));
     expect(await response.json()).toMatchObject({
       requested_amount_minor: 12_345,
       authorized_max_amount_minor: 23_456,
       currency: "CAD",
       authorized_currency: "EUR",
+      delegation_scope: "custom:invoice:approve",
+      delegation_resource: "account:test",
+      delegation_category: "invoice",
+      delegation_audience: "verifier-test",
+      delegation_issued_at: 1_900_000_000,
+      delegation_expires_at: 1_900_086_400,
     });
   });
 

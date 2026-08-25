@@ -37,7 +37,13 @@ from .agent import (
     build_langchain_agent,
 )
 from .authority import AuthorityFixture
-from .profile import DEFAULT_CATEGORY, DEFAULT_CURRENCY, DEFAULT_RESOURCE
+from .profile import (
+    AUDIENCE_CONSTRAINT,
+    CATEGORY_CONSTRAINT,
+    DEFAULT_CATEGORY,
+    DEFAULT_CURRENCY,
+    DEFAULT_RESOURCE,
+)
 from .transport import CallerAuthenticator, CarrierDenied
 
 _SCENARIO_AMOUNTS = {"allow": 42_000, "over_limit": 50_100}
@@ -241,6 +247,7 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
         "currency": arguments["currency"],
         "authorized_max_amount_minor": maximum,
         "authorized_currency": authorized_currency,
+        **_delegation_public_facts(settings.authority.delegation),
     }
 
 
@@ -258,6 +265,41 @@ def _delegation_amount_limit(delegation) -> tuple[int, str]:
     if minor != minor.to_integral_value() or minor < 0:
         raise RuntimeError("deployment delegation has invalid amount constraint")
     return int(minor), limits[0].currency
+
+
+def _delegation_public_facts(delegation) -> dict[str, str | int]:
+    if len(delegation.scope) != 1 or not isinstance(delegation.scope[0], str):
+        raise RuntimeError("deployment delegation has invalid scope")
+    resource = [
+        constraint for constraint in delegation.constraints
+        if constraint.type == "resource_path"
+    ]
+    category = [
+        constraint for constraint in delegation.constraints
+        if constraint.type == CATEGORY_CONSTRAINT
+    ]
+    audience = [
+        constraint for constraint in delegation.constraints
+        if constraint.type == AUDIENCE_CONSTRAINT
+    ]
+    if (
+        len(resource) != 1 or not isinstance(resource[0].resource_id, str)
+        or len(category) != 1 or not isinstance(category[0].params, dict)
+        or not isinstance(category[0].params.get("allowed"), str)
+        or len(audience) != 1 or not isinstance(audience[0].params, dict)
+        or not isinstance(audience[0].params.get("allowed"), str)
+        or not isinstance(delegation.issued_at, int)
+        or not isinstance(delegation.expires_at, int)
+    ):
+        raise RuntimeError("deployment delegation has invalid public facts")
+    return {
+        "delegation_scope": delegation.scope[0],
+        "delegation_resource": resource[0].resource_id,
+        "delegation_category": category[0].params["allowed"],
+        "delegation_audience": audience[0].params["allowed"],
+        "delegation_issued_at": delegation.issued_at,
+        "delegation_expires_at": delegation.expires_at,
+    }
 
 
 def _model(settings: AgentSettings, arguments: dict[str, Any]):

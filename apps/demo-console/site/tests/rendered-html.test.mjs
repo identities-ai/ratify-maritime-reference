@@ -22,6 +22,10 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /An agent can ask/);
   assert.match(html, /\$420\.00/);
   assert.match(html, /\$501\.00/);
+  assert.match(html, /What authority does this agent carry/);
+  assert.match(html, /custom:work_order:create/);
+  assert.match(html, /Seattle warehouse 01/);
+  assert.match(html, /Seven days; exact live expiry shown after execution/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/);
   assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
   assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
@@ -35,6 +39,8 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(page, /index === 4 && result\.decision === "ALLOW"/);
   assert.match(page, /requested_amount_minor/);
   assert.match(page, /authorized_max_amount_minor/);
+  assert.match(page, /delegation_expires_at/);
+  assert.match(page, /Inspect and repair loading-bay lighting/);
   assert.match(page, /title: "Demo limit reached"/);
   assert.match(page, /title: "Unavailable"/);
   assert.doesNotMatch(page, /<b>Unavailable<\/b>/);
