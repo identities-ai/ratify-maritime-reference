@@ -206,3 +206,26 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Live allow from the production console origin: HTTP 200, `ALLOW`, shared
   handler count 6
 - Desktop and mobile closure renders remain subject to independent review
+
+## Live delegation explanation closure
+
+- Date: 2026-08-25
+- Agent source: `ce0494e37e441ce0c8fbaee557a7c3096e6ea4e7`
+- Agent image:
+  `ghcr.io/identities-ai/ratify-maritime-agent@sha256:e769c3ad151d12b5b8ef3f1b9caec3bab97cb2bad3eadbc0179bf5f9c9c376c6`
+- Delegation SHA-256 remains
+  `6fad6d3d3c7c115be5067321dddf706dae94b97b360ccd7d0ae4e919a4ec3e52`
+- Scenario Worker version: `91b33a49-728d-4a9d-9e2b-be02d01c7cc0`
+- Console hosting version: 11; routed console source:
+  `e09e07bfa5c92dda7328c2021c2fcbed71cef805`
+- The live response projects the decoded delegation's scope, resource,
+  category, audience, issue time, and expiry. The browser explains these facts
+  before execution and renders the exact live values with the result.
+- Live over-limit: `DENY_LIMIT_EXCEEDED`, requested 50,100 minor units against
+  the signed 50,000 USD ceiling, shared handler count 14 unchanged.
+- Live allow: `ALLOW`, requested 42,000 minor units against the same ceiling,
+  shared handler count 15.
+- The first request immediately after deployment returned the proxy's fixed
+  unavailable response while Maritime became ready. A retry completed; the
+  health endpoint remained 200. No automatic retry is used for an action whose
+  execution state could otherwise be ambiguous.
