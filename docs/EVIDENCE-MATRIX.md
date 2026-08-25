@@ -15,7 +15,7 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MCP-001..007 | Real Streamable HTTP flow, business-only schema, caller-bound reference | Complete locally |
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
-| UI-001..013 | Executed console evidence and visual QA | Deployed; closure retest pending |
+| UI-001..013 | Executed console evidence and visual QA | Complete |
 | PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
 | VAL-001..007 | Clean-checkout run and public-copy review | Pending |
 | PUB-001..005 | Public repository and protocol index | Pending |
@@ -178,6 +178,31 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
   direct requests; the routed page and its `/maritime/_next/` assets return 200
 - Live over-limit from the production console origin: HTTP 200,
   `DENY_LIMIT_EXCEEDED`, shared handler count 5
+
+## Final Labs closure
+
+- Date: 2026-08-24
+- Agent image source: `f4d4b00ef4e81e8acc5fca9124da55267c69c544`
+- Agent image digest:
+  `sha256:8288f4d24ada03281eec88bfab05d2e3b7552e36890a7b5a32c45c21b44f8c85`
+- Scenario Worker version: `b5aae58b-b593-49ad-8994-91537f642c74`
+- Scenario Worker gate: 31 tests, type check and production dry run passed
+- Console hosting version: 9; routed console source: `6b9adf5`
+- The agent response now reports the amount actually dispatched and the maximum
+  and currency parsed from the live signed delegation. The proxy projects those
+  values and contains no duplicate policy-amount constants.
+- Live over-limit: `DENY_LIMIT_EXCEEDED`, requested 50,100 minor units, signed
+  bound 50,000 minor units, shared handler count 9.
+- Live allow: `ALLOW`, requested 42,000 minor units, signed bound 50,000 minor
+  units, shared handler count 10.
+- Missing and foreign origins return HTTP 403. The custom console and its
+  registered assets return HTTP 200.
+- Provider-host document and execution routes return HTTP 404. The Sites
+  platform also serves byte-identical public static assets from provider
+  hostnames; this documented limitation exposes no credentials, proof material,
+  private identifiers, or execution capability.
+- Commits after the deployed source revisions record evidence and licensing
+  only; they do not alter the deployed runtime bundles.
 - Live allow from the production console origin: HTTP 200, `ALLOW`, shared
   handler count 6
 - Desktop and mobile closure renders remain subject to independent review
