@@ -22,6 +22,7 @@ type Result = {
   requested_amount_minor: number;
   authorized_max_amount_minor: number;
   currency: string;
+  authorized_currency: string;
   timestamp: string;
 };
 
@@ -40,6 +41,10 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario }),
       });
+      if (response.status === 429) {
+        setError("Demo limit reached — try again in a minute.");
+        return;
+      }
       if (!response.ok) throw new Error();
       setResult(await response.json() as Result);
     } catch {
@@ -111,7 +116,7 @@ export default function Home() {
             <div className="decision-copy"><p>AUTHORITY RESULT</p><h3>{result.decision}</h3><span>{allowed ? "Authorized request reached the handler." : "Signed limit enforced before handler entry."}</span></div>
             <dl>
               <div><dt>Requested</dt><dd>{requested}</dd></div>
-              <div><dt>Authorized bound</dt><dd>≤ {money(result.authorized_max_amount_minor, result.currency)}</dd></div>
+              <div><dt>Authorized bound</dt><dd>≤ {money(result.authorized_max_amount_minor, result.authorized_currency)}</dd></div>
               <div><dt>Receiver reason</dt><dd><code>{result.reason}</code></dd></div>
               <div><dt>Shared receiver handler count</dt><dd>{result.handler_invocations}</dd></div>
             </dl>

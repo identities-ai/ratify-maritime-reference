@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -230,7 +231,33 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
                 "content": f"Execute the enumerated demo scenario: {scenario}",
             }]
         })
-    return _tool_decision(result["messages"])
+    decision = _tool_decision(result["messages"])
+    maximum, authorized_currency = _delegation_amount_limit(
+        settings.authority.delegation
+    )
+    return {
+        **decision,
+        "requested_amount_minor": arguments["amount_minor"],
+        "currency": arguments["currency"],
+        "authorized_max_amount_minor": maximum,
+        "authorized_currency": authorized_currency,
+    }
+
+
+def _delegation_amount_limit(delegation) -> tuple[int, str]:
+    limits = [
+        constraint for constraint in delegation.constraints
+        if constraint.type == "max_amount"
+    ]
+    if len(limits) != 1 or not isinstance(limits[0].currency, str):
+        raise RuntimeError("deployment delegation has invalid amount constraint")
+    try:
+        minor = Decimal(str(limits[0].max_amount)) * 100
+    except (InvalidOperation, TypeError, ValueError):
+        raise RuntimeError("deployment delegation has invalid amount constraint") from None
+    if minor != minor.to_integral_value() or minor < 0:
+        raise RuntimeError("deployment delegation has invalid amount constraint")
+    return int(minor), limits[0].currency
 
 
 def _model(settings: AgentSettings, arguments: dict[str, Any]):
