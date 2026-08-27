@@ -1,12 +1,14 @@
 # Evidence matrix
 
-Status: Stage 2 receiver core, Stage 3 local MCP boundary, and Stage 4 agent
-runtime complete; Maritime deployment verified except for log-pipeline evidence.
+Status: Phase 1 implementation and live pilot deployed; formal reference
+completion remains pending on the explicitly listed review, evidence, and
+publication items.
 
 | Requirement | Evidence | Status |
 |---|---|---|
-| ISS-004 | `uv.lock`; PyPI wheel hash recorded below | Complete |
-| AGT-001..006 | LangChain builder, filtered MCP tools, fixed interceptor call | Partial |
+| ISS-001..005 | Issuance separation, subject/constraint checks, published package, reproducible fixtures | Complete |
+| AGT-001..007 | LangChain builder, filtered MCP tools, fixed interceptor call, deterministic and optional production modes | Complete |
+| AGT-008 | Independent comparison against Ratify Protocol draft PR #66 | Pending |
 | PRS-001..004 | Deterministic presentation, replay, expiry, and race tests | Complete |
 | PRS-005 | Strict upload and carrier parsing tests | Complete |
 | RCV-001..010 | Receiver-core regression gate, including hostile concurrency | Complete |
@@ -17,8 +19,14 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 | MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
 | UI-001..013 | Executed console evidence and visual QA | Complete |
 | PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
-| VAL-001..007 | Clean-checkout run and public-copy review | Pending |
-| PUB-001..005 | Public repository and protocol index | Pending |
+| VAL-001..007 | Clean-checkout run and final public-copy review | Pending final clean-checkout record |
+| PUB-001, PUB-005 | Canonical public implementation repository and no-endorsement boundary | Complete |
+| PUB-002..004 | Protocol discovery, immutable registry entry, and publication merge | Pending |
+
+Formal Phase 1 completion is not claimed. The remaining baseline items are
+AGT-008, MAR-005, the final clean-checkout value record, the short recording
+and final screenshot set required by section 11, Maritime's opportunity to
+review the technical and publication claims, and PUB-002..004.
 
 ## Frozen Stage 2 checkpoint
 
@@ -67,8 +75,8 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Command: `uv run --python 3.12 pytest -q -W error`
 - Result after deployment-issuance remediation: 70 collected, 70 passed, 0 skipped,
   0 xfailed, 0 failed, 0 errors
-- Current deployment gate after Maritime compatibility work: 72 collected,
-  72 passed, 0 skipped, 0 xfailed, 0 failed, 0 errors
+- Current deployment and documentation-contract gate: 74 collected, 74 passed,
+  0 skipped, 0 xfailed, 0 failed, 0 errors
 - Coverage: strict agent-authority loading, private-key/delegation match,
   deterministic and optional production model selection, and a real TCP
   LangChain-to-MCP allow and same-agent over-limit denial
