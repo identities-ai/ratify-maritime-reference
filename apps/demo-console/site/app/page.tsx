@@ -34,13 +34,20 @@ type Result = {
 
 export default function Home() {
   const [pending, setPending] = useState<Scenario | null>(null);
+  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
 
   async function run(scenario: Scenario) {
     setPending(scenario);
+    setProgress(0);
     setError(null);
     setResult(null);
+    const timers = [
+      window.setTimeout(() => setProgress(1), 1500),
+      window.setTimeout(() => setProgress(2), 4000),
+      window.setTimeout(() => setProgress(3), 7000),
+    ];
     try {
       const response = await fetch(API, {
         method: "POST",
@@ -58,13 +65,21 @@ export default function Home() {
       setResult(await response.json() as Result);
     } catch {
       setError({
-        title: "Unavailable",
-        body: "The live scenario is temporarily unavailable. Please try again shortly.",
+        title: "Runtime did not return a verified result",
+        body: "The isolated Maritime runtimes may still be waking. No automatic retry was attempted. Wait a few seconds, then try again.",
       });
     } finally {
+      timers.forEach(window.clearTimeout);
       setPending(null);
     }
   }
+
+  const progressCopy = [
+    ["Sending the signed request", "The browser is contacting the Maritime-hosted agent."],
+    ["Waiting for the isolated runtimes", "A sleeping Maritime runtime may need several seconds to become ready."],
+    ["Waiting for receiver verification", "The agent is requesting a decision from the separately deployed Ratify receiver."],
+    ["Still waiting for verified evidence", "The result will say whether protected code ran. This page will not assume or automatically retry."],
+  ][progress];
 
   const money = (minor: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100) + ` ${currency}`;
   const requested = result ? money(result.requested_amount_minor, result.currency) : "";
@@ -141,7 +156,10 @@ export default function Home() {
               </div>;
             })}
           </div>
-          {pending && <div className="result pending"><span className="spinner" />Executing the signed request…</div>}
+          {pending && <div className="result pending" role="status">
+            <span className="spinner" />
+            <span><b>{progressCopy[0]}</b><small>{progressCopy[1]}</small></span>
+          </div>}
           {error && <div className="result error" role="alert"><b>{error.title}</b><span>{error.body}</span></div>}
           {result && <div className={`result ${allowed ? "allow" : "deny"}`} role="status">
             <div className="decision-icon" aria-hidden="true">{allowed ? "✓" : "×"}</div>

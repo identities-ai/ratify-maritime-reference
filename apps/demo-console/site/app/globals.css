@@ -50,7 +50,7 @@ h1 em { color:var(--blue); font-style:normal; }
 .stage.blocked { opacity:1; }.stage.blocked .stage-number { color:var(--red);border-color:var(--red); }.stage.blocked strong:after { content:" · Not entered"; color:var(--red);font-size:11px; }
 .result { margin-top:32px; border-radius:16px; padding:26px; display:grid; grid-template-columns:auto 1fr 1.2fr; gap:22px; align-items:start; border:1px solid var(--line); }
 .result.allow { background:#f0faf5; border-color:#bde4d1; }.result.deny { background:#fff4f5;border-color:#efc7cd; }
-.result.pending { display:flex; align-items:center; justify-content:center; color:var(--muted); }.result.error { display:flex; flex-direction:column; }
+.result.pending { display:flex; align-items:center; justify-content:center; color:var(--muted); }.result.pending>span:last-child{display:flex;flex-direction:column;gap:5px}.result.pending b{color:var(--ink);font-size:14px}.result.pending small{max-width:560px;line-height:1.45}.result.error { display:flex; flex-direction:column; }
 .spinner { width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite; }
 .decision-icon { width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:25px;background:var(--green); }.deny .decision-icon{background:var(--red)}
 .decision-copy p { margin:2px 0 5px;font:600 10px var(--font-mono);letter-spacing:.15em; }.decision-copy h3{margin:0;font-size:34px}.decision-copy span{display:block;font-size:13px;color:var(--muted);line-height:1.55}
