@@ -1,8 +1,10 @@
 # Maritime × Ratify Authority-Aware Agent Reference
 
-Status: Frozen Phase 1 baseline  
-Version: 1.1  
-Date: 2026-08-17  
+Status: Frozen Phase 1 baseline; deployed pilot; completion pending
+
+Version: 1.2
+
+Date: 2026-08-27
 Owner: Ratify Protocol / Identities.AI, Inc.
 
 ## 1. Purpose
@@ -51,7 +53,7 @@ Phase 1 consists of:
    presentation, applies its own policy, and conditionally invokes a simulated
    work-order handler.
 5. A deterministic adversarial acceptance gate requiring no paid model API.
-6. A thin demonstration console driven by real, redacted execution events.
+6. A thin demonstration console driven by real, redacted execution results.
 
 The initial deployed transport is MCP over direct Streamable HTTP. The receiver
 may be operated by Ratify in Phase 1, but it must have separate keys,
@@ -109,7 +111,7 @@ when the protected handler is not invoked.
 The principal delegates authority for an electrical maintenance work order:
 
 ```text
-scope:       work_order:create
+scope:       custom:work_order:create
 resource:    site:warehouse-seattle-01
 category:    electrical
 max_amount:  500 USD
@@ -122,7 +124,7 @@ The protected action schema is:
 ```json
 {
   "request_id": "req-...",
-  "scope": "work_order:create",
+  "scope": "custom:work_order:create",
   "resource": "site:warehouse-seattle-01",
   "category": "electrical",
   "amount_minor": 42000,
@@ -252,8 +254,10 @@ it MUST NOT replace Ratify subject verification.
 - **UI-002:** It MUST display requested values beside authorized bounds.
 - **UI-003:** It MUST show agent recognition separately from authority result.
 - **UI-004:** It MUST show the receiver reason code and handler invocation count.
-- **UI-005:** Every displayed event MUST originate from an executed request, not
-  a pre-scripted animation.
+- **UI-005:** Every displayed decision, reason, handler count, and authority
+  fact MUST originate from an executed request, not a pre-scripted outcome.
+  Client-side waiting copy MUST be identified as waiting state and MUST NOT
+  claim that an unobserved server stage completed.
 - **UI-006:** The console MUST redact keys, full proofs, sensitive identifiers,
   and internal exception text.
 - **UI-007:** The default view MUST be understandable without cryptographic or
@@ -266,8 +270,9 @@ it MUST NOT replace Ratify subject verification.
   and mobile widths with no clipped, overlapping, or unreadable content.
 - **UI-011:** Color MUST NOT be the only decision signal. ALLOW and DENY states
   MUST include text, icons, and accessible status semantics.
-- **UI-012:** Motion MUST reflect real event order, remain restrained, and honor
-  reduced-motion preferences.
+- **UI-012:** Motion MUST NOT imply unobserved server-stage completion. Outcome
+  stage state MAY render only after a verified result, and all motion MUST
+  remain restrained and honor reduced-motion preferences.
 - **UI-013:** The public console MUST expose only enumerated demo scenarios and
   rate-limited read-only evidence; arbitrary tool or receiver invocation is
   forbidden.
@@ -308,7 +313,7 @@ it MUST NOT replace Ratify subject verification.
 
 ## 9. Deployment topology
 
-The planned Phase 1 deployment is:
+The deployed Phase 1 pilot topology is:
 
 ```text
 labs.ratifyprotocol.com/maritime     Standalone static demo console
@@ -322,9 +327,11 @@ Maritime runtime A                  LangChain agent container
 Maritime runtime B                  Separately isolated MCP receiver
 ```
 
-The console source MUST live at `apps/demo-console/` in this repository and is
-planned for an independent Cloudflare Pages/Workers deployment under the Ratify
-Labs hostname. This is separate code and deployment from `ratify-web`.
+The console source MUST live at `apps/demo-console/` in this repository. The
+site is deployed through Sites behind the secret-bound Ratify Labs router at
+`labs.ratifyprotocol.com/maritime`; a separate Cloudflare Worker exposes only
+the enumerated, origin-bound scenario API. This is separate code and deployment
+from `ratify-web`.
 
 The agent MUST live at `apps/agent/` and deploy to one Maritime isolated
 runtime. The receiver MUST live at `apps/receiver/` and deploy to a second
@@ -427,10 +434,17 @@ Phase 1 is complete only when:
 8. Every `VAL-*` requirement has inspectable evidence.
 9. Every `PUB-*` requirement has inspectable evidence.
 
-Until all nine conditions are met, the work remains an experimental draft.
+Until all nine conditions are met, the deployed pilot remains incomplete under
+this baseline and MUST NOT be advertised as a Maritime-reviewed or completed
+Ratify reference.
 
 ## 15. Baseline change log
 
+- **1.2, 2026-08-27:** Corrected the frozen use-case scope to the implemented
+  `custom:work_order:create` profile; replaced pre-deployment topology language
+  with the deployed Sites, Labs-router, and scenario-Worker topology; and
+  narrowed UI-005/UI-012 so execution claims remain response-sourced while
+  honest client-side runtime waiting states cannot imply unobserved progress.
 - **1.1, 2026-08-17:** Added MCP-007 after the Stage 2 hostile closure review
   identified cross-caller pending-state eviction as a transport-boundary
   liveness risk. Stage 2 authorization behavior is unchanged.

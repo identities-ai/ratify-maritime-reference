@@ -130,10 +130,24 @@ Cloudflare secret binding. An exact Durable Object limiter applies both a
 per-client and a global budget across Worker instances. No browser credential,
 general proxying, evidence API, user account, or analytics store is included.
 
-Planned deployment:
+Deployed pilot topology:
 
 - `apps/agent/`: LangChain agent runtime built by the root `Dockerfile`
 - `apps/receiver/`: Ratify-verifying MCP receiver in a second isolated runtime
 - `apps/demo-console/`: reviewed proxy followed by a standalone Ratify-branded
   UI published through the shared Ratify Labs catalog at
   `labs.ratifyprotocol.com/maritime`
+
+## Open reference and managed product boundary
+
+This repository uses the open Ratify protocol and local reference components;
+it does not require a Ratify service. Ratify Verify is a separate managed
+product under development, intended to operationalize functions such as
+issuance, trust administration, revocation, and audit without introducing a
+proprietary proof format. It is not required to reproduce this pilot.
+
+The pilot is deployed, but it is not yet complete under the frozen reference
+criteria. Current-runtime log evidence, Maritime review, publication recording
+and screenshots, and the required `ratify-protocol` discovery entries remain
+open. The public UI therefore labels this a live pilot rather than a completed
+or Maritime-reviewed reference.

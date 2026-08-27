@@ -95,13 +95,17 @@ export default function Home() {
           <Image src="/maritime/ratify-logo.png" alt="" width={28} height={28} unoptimized />
           <span>RATIFY <b>LABS</b></span>
         </a>
-        <span className="live"><i /> Live reference</span>
+        <span className="live"><i /> Live pilot</span>
       </header>
 
       <section className="hero">
         <p className="eyebrow">MARITIME × RATIFY</p>
         <h1>An agent can ask.<br /><em>Authority decides.</em></h1>
         <p className="lede">Run the same Maritime agent twice. A signed delegation permits one work order and rejects the other before protected code runs.</p>
+        <div className="hero-links" aria-label="Learn about the technologies in this pilot">
+          <a href="https://maritime.sh/" target="_blank" rel="noreferrer">About Maritime ↗</a>
+          <a href="https://ratifyprotocol.com/" target="_blank" rel="noreferrer">About Ratify Protocol ↗</a>
+        </div>
       </section>
 
       <section className="lab" aria-labelledby="lab-title">
@@ -202,16 +206,19 @@ export default function Home() {
             <span>MARITIME</span>
             <h3>Isolated execution</h3>
             <p>Runs the LangChain agent and receiver in separate managed runtimes, keeping execution boundaries explicit.</p>
+            <a href="https://maritime.sh/" target="_blank" rel="noreferrer">Explore Maritime ↗</a>
           </article>
           <article>
             <span>RATIFY</span>
             <h3>Portable authority</h3>
             <p>Binds permission to the agent&rsquo;s key and exact scope, resource, category, amount, audience, and validity window.</p>
+            <a href="https://ratifyprotocol.com/" target="_blank" rel="noreferrer">Explore Ratify Protocol ↗</a>
           </article>
           <article>
             <span>TOGETHER</span>
             <h3>Enforcement before action</h3>
             <p>The receiver trusts neither the prompt nor a model assertion. It verifies proof and local policy before protected code runs.</p>
+            <a href="https://github.com/identities-ai/ratify-maritime-reference" target="_blank" rel="noreferrer">Inspect the implementation ↗</a>
           </article>
         </div>
 
@@ -250,7 +257,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer><span>Open-source reference · Not a Maritime endorsement</span><a href="https://github.com/identities-ai/ratify-maritime-reference">View source ↗</a></footer>
+      <footer><span>Open-source pilot implementation · Not a Maritime endorsement</span><a href="https://github.com/identities-ai/ratify-maritime-reference">View source ↗</a></footer>
     </main>
   );
 }
