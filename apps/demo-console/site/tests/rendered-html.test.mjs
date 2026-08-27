@@ -42,7 +42,9 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(page, /delegation_expires_at/);
   assert.match(page, /Inspect and repair loading-bay lighting/);
   assert.match(page, /title: "Demo limit reached"/);
-  assert.match(page, /title: "Unavailable"/);
+  assert.match(page, /Waiting for the isolated runtimes/);
+  assert.match(page, /No automatic retry was attempted/);
+  assert.match(page, /title: "Runtime did not return a verified result"/);
   assert.doesNotMatch(page, /<b>Unavailable<\/b>/);
   assert.doesNotMatch(page, /\$750\.00/);
 });
