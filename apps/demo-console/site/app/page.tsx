@@ -190,6 +190,66 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="why" aria-labelledby="why-title">
+        <div className="why-heading">
+          <p className="kicker">WHY THIS REFERENCE EXISTS</p>
+          <h2 id="why-title">Isolation controls where an agent runs.<br />Delegation controls what it may do.</h2>
+          <p>Prompts can guide a model, and API keys can identify a caller. Neither is a precise grant for one agent to perform one bounded action. This reference combines an isolated Maritime runtime with authority that a separate Ratify receiver verifies before business logic executes.</p>
+        </div>
+
+        <div className="partner-grid">
+          <article>
+            <span>MARITIME</span>
+            <h3>Isolated execution</h3>
+            <p>Runs the LangChain agent and receiver in separate managed runtimes, keeping execution boundaries explicit.</p>
+          </article>
+          <article>
+            <span>RATIFY</span>
+            <h3>Portable authority</h3>
+            <p>Binds permission to the agent&rsquo;s key and exact scope, resource, category, amount, audience, and validity window.</p>
+          </article>
+          <article>
+            <span>TOGETHER</span>
+            <h3>Enforcement before action</h3>
+            <p>The receiver trusts neither the prompt nor a model assertion. It verifies proof and local policy before protected code runs.</p>
+          </article>
+        </div>
+
+        <div className="architecture" aria-labelledby="architecture-title">
+          <div className="architecture-copy">
+            <p className="kicker">EXECUTION PATH</p>
+            <h3 id="architecture-title">From signed permission to protected code</h3>
+            <p>The delegation travels with the agent as a verifiable public credential. The private agent key never enters the browser.</p>
+          </div>
+          <ol className="architecture-flow">
+            <li><span>01</span><b>Principal</b><small>Signs bounded authority</small></li>
+            <li><span>02</span><b>Maritime agent</b><small>Builds the requested action</small></li>
+            <li><span>03</span><b>Ratify proof</b><small>Binds identity and action</small></li>
+            <li><span>04</span><b>Receiver</b><small>Verifies proof and policy</small></li>
+            <li><span>05</span><b>Handler</b><small>Runs only after ALLOW</small></li>
+          </ol>
+        </div>
+
+        <div className="evidence-boundary">
+          <article>
+            <p className="kicker">WHAT THE LIVE RESULT PROVES</p>
+            <ul>
+              <li>The same agent can be allowed or denied without changing its identity.</li>
+              <li>An over-limit request is stopped before the protected handler.</li>
+              <li>The displayed scope, amount, bound, and expiry come from live execution evidence.</li>
+            </ul>
+          </article>
+          <article>
+            <p className="kicker">BOUNDARY OF THE CLAIM</p>
+            <ul>
+              <li>This is an open reference implementation, not a production service or Maritime endorsement.</li>
+              <li>The receiver is separately deployed but currently operated by Ratify for this pilot.</li>
+              <li>The shared counter is system-wide evidence, not a visitor-specific activity record.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
       <footer><span>Open-source reference · Not a Maritime endorsement</span><a href="https://github.com/identities-ai/ratify-maritime-reference">View source ↗</a></footer>
     </main>
   );

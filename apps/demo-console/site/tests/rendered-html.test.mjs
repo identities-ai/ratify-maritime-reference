@@ -26,6 +26,10 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /custom:work_order:create/);
   assert.match(html, /Seattle warehouse 01/);
   assert.match(html, /Seven days; exact live expiry shown after execution/);
+  assert.match(html, /Isolation controls where an agent runs/);
+  assert.match(html, /Portable authority/);
+  assert.match(html, /From signed permission to protected code/);
+  assert.match(html, /The receiver is separately deployed but currently operated by Ratify/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/);
   assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
   assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
