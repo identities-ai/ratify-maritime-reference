@@ -216,8 +216,8 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Delegation SHA-256 remains
   `6fad6d3d3c7c115be5067321dddf706dae94b97b360ccd7d0ae4e919a4ec3e52`
 - Scenario Worker version: `91b33a49-728d-4a9d-9e2b-be02d01c7cc0`
-- Console hosting version: 12; routed console source:
-  `87cce386fefa07edf2cde1146e417ea53de9d5f1`
+- Console hosting version: 13; routed console source:
+  `7387be16b393fcbe2e71860f0c8d8251eb5995f0`
 - The live response projects the decoded delegation's scope, resource,
   category, audience, issue time, and expiry. The browser explains these facts
   before execution and renders the exact live values with the result.
@@ -232,3 +232,6 @@ runtime complete; Maritime deployment verified except for log-pipeline evidence.
 - Version 12 adds elapsed runtime-wait states and a specific missing-result
   explanation. It changes presentation only; the agent, receiver, and
   authorization behavior are unchanged.
+- Version 13 adds the reference rationale, complementary Maritime and Ratify
+  roles, execution architecture, live-evidence claims, and explicit pilot
+  limitations. It changes presentation only.
