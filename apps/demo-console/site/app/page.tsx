@@ -162,7 +162,7 @@ export default function Home() {
           </div>
           {pending && <div className="result pending" role="status">
             <span className="spinner" />
-            <span><b>{progressCopy[0]}</b><small>{progressCopy[1]}</small></span>
+            <span className="progress-copy" key={progress}><b>{progressCopy[0]}</b><small>{progressCopy[1]}</small></span>
           </div>}
           {error && <div className="result error" role="alert"><b>{error.title}</b><span>{error.body}</span></div>}
           {result && <div className={`result ${allowed ? "allow" : "deny"}`} role="status">
