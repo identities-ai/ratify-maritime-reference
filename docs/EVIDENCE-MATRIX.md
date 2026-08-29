@@ -16,7 +16,7 @@ publication items.
 | T-013..T-014 | Duplicate and oversized MCP carrier cases | Complete |
 | MCP-001..007 | Real Streamable HTTP flow, business-only schema, caller-bound reference | Complete locally |
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
-| MAR-005 | Current application-log inspection | Blocked by platform log pipeline |
+| MAR-005 | Current application-log inspection | Current platform logs available; structured decision-stage logging remains pending |
 | UI-001..013 | Executed console evidence and visual QA | Complete |
 | PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
 | VAL-001..007 | Clean-checkout run and final public-copy review | Pending final clean-checkout record |
@@ -27,6 +27,27 @@ Formal Phase 1 completion is not claimed. The remaining baseline items are
 AGT-008, MAR-005, the final clean-checkout value record, the short recording
 and final screenshot set required by section 11, Maritime's opportunity to
 review the technical and publication claims, and PUB-002..004.
+
+## Allow-plus-seven live gate
+
+- Date: 2026-08-29
+- Result: 8 executed, 8 passed
+- Artifact: [`../evidence/adversarial-results.json`](../evidence/adversarial-results.json)
+- Evidence hash: recorded and independently recomputable from the artifact
+- Agent runtime: active, `526e13bb-5a8c-47fc-94bf-96a0dc417983`
+- Receiver runtime: active, `73de1f04-5fe3-43d7-afc7-715206e9241e`
+- Agent image: `sha256:ea97a5a302055036ae71530b5c9a3e660e7447306cff4ddcf02b5d73df20ea22`
+- Receiver image: `sha256:59083a4b41ffb41654b9e04274ffb3a3785d8472d1725a0a87dacea4485d6b98`
+- Scenario Worker version: `a937b0ec-a7d6-4ecd-88af-7cf798f52f7d`
+- Console Sites version: 16
+- Exact results: `ALLOW`, `DENY_LIMIT_EXCEEDED`,
+  `DENY_RESOURCE_MISMATCH`, `DENY_OPERATION_MISMATCH`, `DENY_EXPIRED`,
+  `DENY_REVOKED`, `DENY_REPLAY`, and `DENY_SUBJECT_MISMATCH`
+- Every denied attempt recorded `handler_invoked: false`. The receiver-wide
+  counter increased for the allow and for the replay scenario's deliberately
+  valid setup use, then remained unchanged for the rejected replay attempt.
+- The delegation expires on 2026-09-05 and its offline renewal principal is
+  retained outside the repository and Maritime.
 
 ## Frozen Stage 2 checkpoint
 

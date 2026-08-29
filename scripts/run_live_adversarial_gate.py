@@ -10,8 +10,8 @@ import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+import httpx
 
 
 EXPECTED = {
@@ -36,14 +36,14 @@ def _revision() -> str:
 
 
 def _execute(endpoint: str, origin: str, scenario: str) -> dict[str, object]:
-    request = Request(
+    response = httpx.post(
         endpoint,
-        data=json.dumps({"scenario": scenario}).encode(),
         headers={"Content-Type": "application/json", "Origin": origin},
-        method="POST",
+        json={"scenario": scenario},
+        timeout=45,
     )
-    with urlopen(request, timeout=45) as response:
-        return json.load(response)
+    response.raise_for_status()
+    return response.json()
 
 
 def main() -> int:
@@ -56,6 +56,11 @@ def main() -> int:
     parser.add_argument(
         "--origin", default="https://labs.ratifyprotocol.com"
     )
+    parser.add_argument("--agent-source-revision", required=True)
+    parser.add_argument("--agent-image", required=True)
+    parser.add_argument("--receiver-source-revision", required=True)
+    parser.add_argument("--receiver-image", required=True)
+    parser.add_argument("--worker-version", required=True)
     args = parser.parse_args()
 
     results = []
@@ -76,7 +81,7 @@ def main() -> int:
                     "observed": observed,
                 })
             results.append({"scenario": scenario, "passed": passed, **result})
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (httpx.HTTPError, json.JSONDecodeError) as exc:
         print(f"gate execution failed: {exc}", file=sys.stderr)
         return 2
 
@@ -86,6 +91,13 @@ def main() -> int:
         "source_revision": _revision(),
         "endpoint": args.endpoint,
         "origin": args.origin,
+        "deployment": {
+            "agent_source_revision": args.agent_source_revision,
+            "agent_image": args.agent_image,
+            "receiver_source_revision": args.receiver_source_revision,
+            "receiver_image": args.receiver_image,
+            "worker_version": args.worker_version,
+        },
         "claim": "one allow plus seven distinct receiver denials",
         "passed": not failures and len(results) == len(EXPECTED),
         "results": results,
