@@ -174,21 +174,38 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
         model_mode="deterministic",
         model_id=None,
     )
+    # The deciding layer is part of the claim. A denial that never reaches
+    # Ratify verification proves the receiver's own binding, not the protocol,
+    # and the gate must record which one actually decided.
     expected = {
-        "allow": ("ALLOW", "ALLOW", True),
-        "over_limit": ("DENY", "DENY_LIMIT_EXCEEDED", False),
-        "wrong_resource": ("DENY", "DENY_RESOURCE_MISMATCH", False),
-        "altered_operation": ("DENY", "DENY_OPERATION_MISMATCH", False),
-        "expired": ("DENY", "DENY_EXPIRED", False),
-        "revoked": ("DENY", "DENY_REVOKED", False),
-        "replay": ("DENY", "DENY_REPLAY", False),
-        "wrong_agent": ("DENY", "DENY_SUBJECT_MISMATCH", False),
+        "allow": ("ALLOW", "ALLOW", True, "ratify_verification", "authorized_agent"),
+        "over_limit": (
+            "DENY", "DENY_LIMIT_EXCEEDED", False,
+            "ratify_verification", "constraint_denied",
+        ),
+        "wrong_resource": (
+            "DENY", "DENY_RESOURCE_MISMATCH", False,
+            "ratify_verification", "constraint_denied",
+        ),
+        "altered_operation": (
+            "DENY", "DENY_OPERATION_MISMATCH", False, "proof_carrier", None,
+        ),
+        "expired": ("DENY", "DENY_EXPIRED", False, "ratify_verification", "expired"),
+        "revoked": ("DENY", "DENY_REVOKED", False, "ratify_verification", "revoked"),
+        "replay": ("DENY", "DENY_REPLAY", False, "proof_carrier", None),
+        "wrong_agent": (
+            "DENY", "DENY_SUBJECT_MISMATCH", False, "receiver_precheck", None,
+        ),
     }
     try:
         for scenario, outcome in expected.items():
             result = await run_scenario(settings, scenario)
             assert (
-                result["decision"], result["reason"], result["handler_invoked"]
+                result["decision"],
+                result["reason"],
+                result["handler_invoked"],
+                result["decided_by"],
+                result["verification_status"],
             ) == outcome
         assert receiver.handler_invocations == 2
     finally:

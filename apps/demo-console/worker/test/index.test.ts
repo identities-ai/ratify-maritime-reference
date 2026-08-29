@@ -80,6 +80,8 @@ function agent(status = 200, extra: object = {}) {
     Response.json({
       decision: "ALLOW",
       reason: "ALLOW",
+      decided_by: "ratify_verification",
+      verification_status: "authorized_agent",
       handler_invoked: true,
       handler_invocations: 7,
       requested_amount_minor: 42_000,
@@ -103,19 +105,21 @@ function agent(status = 200, extra: object = {}) {
 
 describe("scenario proxy", () => {
   it.each([
-    ["allow", "ALLOW", "ALLOW"],
-    ["over_limit", "DENY", "DENY_LIMIT_EXCEEDED"],
-    ["wrong_resource", "DENY", "DENY_RESOURCE_MISMATCH"],
-    ["altered_operation", "DENY", "DENY_OPERATION_MISMATCH"],
-    ["expired", "DENY", "DENY_EXPIRED"],
-    ["revoked", "DENY", "DENY_REVOKED"],
-    ["replay", "DENY", "DENY_REPLAY"],
-    ["wrong_agent", "DENY", "DENY_SUBJECT_MISMATCH"],
-  ])("constructs and projects %s", async (scenario, decision, reason) => {
+    ["allow", "ALLOW", "ALLOW", "ratify_verification", "authorized_agent"],
+    ["over_limit", "DENY", "DENY_LIMIT_EXCEEDED", "ratify_verification", "constraint_denied"],
+    ["wrong_resource", "DENY", "DENY_RESOURCE_MISMATCH", "ratify_verification", "constraint_denied"],
+    ["altered_operation", "DENY", "DENY_OPERATION_MISMATCH", "proof_carrier", null],
+    ["expired", "DENY", "DENY_EXPIRED", "ratify_verification", "expired"],
+    ["revoked", "DENY", "DENY_REVOKED", "ratify_verification", "revoked"],
+    ["replay", "DENY", "DENY_REPLAY", "proof_carrier", null],
+    ["wrong_agent", "DENY", "DENY_SUBJECT_MISMATCH", "receiver_precheck", null],
+  ])("constructs and projects %s", async (scenario, decision, reason, decidedBy, verificationStatus) => {
     const { env } = environment();
     const fetchAgent = agent(200, {
       decision,
       reason,
+      decided_by: decidedBy,
+      verification_status: verificationStatus,
       handler_invoked: decision === "ALLOW",
       requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000,
     });
@@ -126,15 +130,18 @@ describe("scenario proxy", () => {
       scenario,
       decision,
       reason,
+      decided_by: decidedBy,
+      verification_status: verificationStatus,
       handler_invoked: decision === "ALLOW",
       handler_invocations: 7,
     });
     expect(Object.keys(body).sort()).toEqual([
-      "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decision",
-      "delegation_audience", "delegation_category", "delegation_expires_at", "delegation_issued_at",
-      "delegation_resource", "delegation_scope", "handler_invocations", "handler_invoked", "reason",
-      "requested_amount_minor", "requested_category", "requested_description", "requested_resource",
-      "scenario", "timestamp",
+      "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decided_by",
+      "decision", "delegation_audience", "delegation_category", "delegation_expires_at",
+      "delegation_issued_at", "delegation_resource", "delegation_scope", "handler_invocations",
+      "handler_invoked", "reason", "requested_amount_minor", "requested_category",
+      "requested_description", "requested_resource", "scenario", "timestamp",
+      "verification_status",
     ]);
     expect(body).toMatchObject({ requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
@@ -291,6 +298,18 @@ describe("scenario proxy", () => {
   it("maps timeouts and invalid responses without internal text", async () => {
     const { env } = environment();
     const fetchAgent = vi.fn(async () => { throw new Error("redis://secret"); });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(await response.text()).toBe('{"error":"SCENARIO_UNAVAILABLE"}');
+  });
+
+  it.each([
+    { decided_by: undefined },
+    { decided_by: 7 },
+    { verification_status: 7 },
+  ])("refuses a result that omits or malforms its deciding layer", async (extra) => {
+    const { env } = environment();
+    const fetchAgent = agent(200, extra);
     const response = await handleRequest(request(), env, fetchAgent);
     expect(response.status).toBe(502);
     expect(await response.text()).toBe('{"error":"SCENARIO_UNAVAILABLE"}');

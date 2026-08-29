@@ -118,6 +118,8 @@ def create_receiver_app(
             return {
                 "decision": "DENY",
                 "reason": error.reason,
+                "decided_by": "proof_carrier",
+                "verification_status": None,
                 "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }
@@ -125,6 +127,8 @@ def create_receiver_app(
             return {
                 "decision": "DENY",
                 "reason": "DENY_VERIFIER_UNAVAILABLE",
+                "decided_by": "receiver_error",
+                "verification_status": None,
                 "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }
