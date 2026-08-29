@@ -118,12 +118,14 @@ def create_receiver_app(
             return {
                 "decision": "DENY",
                 "reason": error.reason,
+                "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }
         except Exception:
             return {
                 "decision": "DENY",
                 "reason": "DENY_VERIFIER_UNAVAILABLE",
+                "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }
 

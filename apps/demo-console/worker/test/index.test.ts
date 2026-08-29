@@ -80,8 +80,12 @@ function agent(status = 200, extra: object = {}) {
     Response.json({
       decision: "ALLOW",
       reason: "ALLOW",
+      handler_invoked: true,
       handler_invocations: 7,
       requested_amount_minor: 42_000,
+      requested_resource: "site:warehouse-seattle-01",
+      requested_category: "electrical",
+      requested_description: "Inspect and repair loading-bay lighting",
       authorized_max_amount_minor: 50_000,
       currency: "USD",
       authorized_currency: "USD",
@@ -98,27 +102,41 @@ function agent(status = 200, extra: object = {}) {
 }
 
 describe("scenario proxy", () => {
-  it.each(["allow", "over_limit"])("constructs and projects %s", async (scenario) => {
+  it.each([
+    ["allow", "ALLOW", "ALLOW"],
+    ["over_limit", "DENY", "DENY_LIMIT_EXCEEDED"],
+    ["wrong_resource", "DENY", "DENY_RESOURCE_MISMATCH"],
+    ["altered_operation", "DENY", "DENY_OPERATION_MISMATCH"],
+    ["expired", "DENY", "DENY_EXPIRED"],
+    ["revoked", "DENY", "DENY_REVOKED"],
+    ["replay", "DENY", "DENY_REPLAY"],
+    ["wrong_agent", "DENY", "DENY_SUBJECT_MISMATCH"],
+  ])("constructs and projects %s", async (scenario, decision, reason) => {
     const { env } = environment();
-    const fetchAgent = agent(200, scenario === "over_limit" ? {
-      decision: "DENY", reason: "DENY_LIMIT_EXCEEDED", requested_amount_minor: 50_100,
-    } : {});
+    const fetchAgent = agent(200, {
+      decision,
+      reason,
+      handler_invoked: decision === "ALLOW",
+      requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000,
+    });
     const response = await handleRequest(request({ scenario }), env, fetchAgent);
     const body = await response.json<Record<string, unknown>>();
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       scenario,
-      decision: scenario === "allow" ? "ALLOW" : "DENY",
-      reason: scenario === "allow" ? "ALLOW" : "DENY_LIMIT_EXCEEDED",
+      decision,
+      reason,
+      handler_invoked: decision === "ALLOW",
       handler_invocations: 7,
     });
     expect(Object.keys(body).sort()).toEqual([
       "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decision",
       "delegation_audience", "delegation_category", "delegation_expires_at", "delegation_issued_at",
-      "delegation_resource", "delegation_scope", "handler_invocations", "reason",
-      "requested_amount_minor", "scenario", "timestamp",
+      "delegation_resource", "delegation_scope", "handler_invocations", "handler_invoked", "reason",
+      "requested_amount_minor", "requested_category", "requested_description", "requested_resource",
+      "scenario", "timestamp",
     ]);
-    expect(body).toMatchObject({ requested_amount_minor: scenario === "allow" ? 42_000 : 50_100, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
+    expect(body).toMatchObject({ requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
     expect(init.body).toBe(JSON.stringify({ message: scenario }));
     expect(init.headers).toEqual({
@@ -341,14 +359,14 @@ describe("durable limiter", () => {
     const first = new ScenarioLimiter({ storage });
     const second = new ScenarioLimiter({ storage });
     const responses = await Promise.all(
-      Array.from({ length: 6 }, (_, index) =>
+      Array.from({ length: 11 }, (_, index) =>
         (index % 2 ? first : second).fetch(limitRequest("same-client"))
       ),
     );
     const results = await Promise.all(
       responses.map((response) => response.json<{ allowed: boolean }>()),
     );
-    expect(results.filter((result) => result.allowed).length).toBe(5);
+    expect(results.filter((result) => result.allowed).length).toBe(10);
     expect(results.filter((result) => !result.allowed).length).toBe(1);
   });
 
@@ -357,14 +375,14 @@ describe("durable limiter", () => {
     const first = new ScenarioLimiter({ storage });
     const second = new ScenarioLimiter({ storage });
     const responses = await Promise.all(
-      Array.from({ length: 21 }, (_, index) =>
+      Array.from({ length: 81 }, (_, index) =>
         (index % 2 ? first : second).fetch(limitRequest(`client-${index}`))
       ),
     );
     const results = await Promise.all(
       responses.map((response) => response.json<{ allowed: boolean }>()),
     );
-    expect(results.filter((result) => result.allowed).length).toBe(20);
+    expect(results.filter((result) => result.allowed).length).toBe(80);
     expect(results.filter((result) => !result.allowed).length).toBe(1);
   });
 

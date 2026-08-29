@@ -1,7 +1,26 @@
-const SCENARIOS = new Set(["allow", "over_limit"]);
+const SCENARIOS = new Set([
+  "allow",
+  "over_limit",
+  "wrong_resource",
+  "altered_operation",
+  "expired",
+  "revoked",
+  "replay",
+  "wrong_agent",
+]);
+const SCENARIO_PATTERN = [
+  "allow",
+  "over_limit",
+  "wrong_resource",
+  "altered_operation",
+  "expired",
+  "revoked",
+  "replay",
+  "wrong_agent",
+].join("|");
 const WINDOW_MS = 60_000;
-const PER_CLIENT_LIMIT = 5;
-const GLOBAL_LIMIT = 20;
+const PER_CLIENT_LIMIT = 10;
+const GLOBAL_LIMIT = 80;
 const AGENT_TIMEOUT_MS = 15_000;
 
 interface RateLimitResult {
@@ -126,7 +145,9 @@ export async function handleRequest(
   try {
     const raw = await request.text();
     if (raw.length > 256) throw new Error();
-    const match = /^\s*\{\s*"scenario"\s*:\s*"(allow|over_limit)"\s*\}\s*$/.exec(raw);
+    const match = new RegExp(
+      `^\\s*\\{\\s*"scenario"\\s*:\\s*"(${SCENARIO_PATTERN})"\\s*\\}\\s*$`,
+    ).exec(raw);
     if (!match || !SCENARIOS.has(match[1])) throw new Error();
     scenario = match[1];
   } catch {
@@ -174,8 +195,12 @@ export async function handleRequest(
     if (
       typeof value.decision !== "string" ||
       typeof value.reason !== "string" ||
+      typeof value.handler_invoked !== "boolean" ||
       typeof value.handler_invocations !== "number" ||
       typeof value.requested_amount_minor !== "number" ||
+      typeof value.requested_resource !== "string" ||
+      typeof value.requested_category !== "string" ||
+      typeof value.requested_description !== "string" ||
       typeof value.authorized_max_amount_minor !== "number" ||
       typeof value.currency !== "string" ||
       typeof value.authorized_currency !== "string" ||
@@ -193,8 +218,12 @@ export async function handleRequest(
       scenario,
       decision: value.decision,
       reason: value.reason,
+      handler_invoked: value.handler_invoked,
       handler_invocations: value.handler_invocations,
       requested_amount_minor: value.requested_amount_minor,
+      requested_resource: value.requested_resource,
+      requested_category: value.requested_category,
+      requested_description: value.requested_description,
       authorized_max_amount_minor: value.authorized_max_amount_minor,
       currency: value.currency,
       authorized_currency: value.authorized_currency,

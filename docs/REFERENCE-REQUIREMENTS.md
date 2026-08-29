@@ -2,7 +2,7 @@
 
 Status: Frozen Phase 1 baseline; deployed pilot; completion pending
 
-Version: 1.2
+Version: 1.3
 
 Date: 2026-08-27
 Owner: Ratify Protocol / Identities.AI, Inc.
@@ -165,7 +165,7 @@ it MUST NOT replace Ratify subject verification.
 - **ISS-003:** The delegation MUST bind scope, resource, category, amount,
   audience, and expiry.
 - **ISS-004:** The build MUST use the published Python package
-  `ratify-protocol==1.0.0a16`, not an unpublished local SDK checkout.
+  `ratify-protocol==1.0.0a17`, not an unpublished local SDK checkout.
 - **ISS-005:** Demo fixtures MUST be reproducible without publishing private
   production key material.
 
@@ -276,6 +276,9 @@ it MUST NOT replace Ratify subject verification.
 - **UI-013:** The public console MUST expose only enumerated demo scenarios and
   rate-limited read-only evidence; arbitrary tool or receiver invocation is
   forbidden.
+- **UI-014:** The public full gate MUST execute one allow and the exceeded-limit,
+  wrong-resource, altered-operation, expired, revoked, replay, and wrong-agent
+  denials, and MUST compare each live result with its exact stable reason code.
 
 ### 8.8 Developer value and open-reference boundary
 
@@ -384,6 +387,8 @@ The reference is complete only when it produces:
 - A README that separates implemented, tested, deployed, and proposed claims.
 - A short demo recording and screenshots generated from the working system.
 - Desktop and mobile visual-QA renders of the final demo console.
+- A machine-readable full-gate artifact containing redacted executed results,
+  source revision, execution time, endpoint, and a verifiable evidence hash.
 
 ## 12. Phase 2 compatibility requirements
 
@@ -440,6 +445,10 @@ Ratify reference.
 
 ## 15. Baseline change log
 
+- **1.3, 2026-08-29:** Upgraded the published Ratify dependency to alpha.17;
+  made the public allow-plus-seven adversarial gate and machine-readable live
+  artifact mandatory; preserved the existing denial semantics and completion
+  boundary.
 - **1.2, 2026-08-27:** Corrected the frozen use-case scope to the implemented
   `custom:work_order:create` profile; replaced pre-deployment topology language
   with the deployed Sites, Labs-router, and scenario-Worker topology; and

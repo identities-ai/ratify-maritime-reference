@@ -12,14 +12,44 @@ const stages = [
   ["05", "Protected handler", "Runs only after ALLOW"],
 ];
 
-type Scenario = "allow" | "over_limit";
+type Scenario =
+  | "allow"
+  | "over_limit"
+  | "wrong_resource"
+  | "altered_operation"
+  | "expired"
+  | "revoked"
+  | "replay"
+  | "wrong_agent";
+
+const scenarios: {
+  id: Scenario;
+  tag: string;
+  title: string;
+  detail: string;
+  expectedDecision: "ALLOW" | "DENY";
+  expectedReason: string;
+}[] = [
+  { id: "allow", tag: "WITHIN AUTHORITY", title: "$420 Seattle electrical repair", detail: "Exact agent, action, resource, bounds, and validity.", expectedDecision: "ALLOW", expectedReason: "ALLOW" },
+  { id: "over_limit", tag: "EXCEEDED LIMIT", title: "$501 Seattle electrical repair", detail: "The same agent asks for more than the signed $500 ceiling.", expectedDecision: "DENY", expectedReason: "DENY_LIMIT_EXCEEDED" },
+  { id: "wrong_resource", tag: "WRONG RESOURCE", title: "$420 Portland electrical repair", detail: "The signed authority names the Seattle warehouse only.", expectedDecision: "DENY", expectedReason: "DENY_RESOURCE_MISMATCH" },
+  { id: "altered_operation", tag: "ALTERED OPERATION", title: "Action changed after proof creation", detail: "The dispatched description no longer matches the signed presentation.", expectedDecision: "DENY", expectedReason: "DENY_OPERATION_MISMATCH" },
+  { id: "expired", tag: "EXPIRED", title: "Expired signed delegation", detail: "The credential is authentic but outside its validity window.", expectedDecision: "DENY", expectedReason: "DENY_EXPIRED" },
+  { id: "revoked", tag: "REVOKED", title: "Revoked signed delegation", detail: "The credential is authentic and current, but the receiver has revoked it.", expectedDecision: "DENY", expectedReason: "DENY_REVOKED" },
+  { id: "replay", tag: "REPLAY", title: "Consumed proof reference reused", detail: "One valid use is followed by a second attempt with the same one-time proof.", expectedDecision: "DENY", expectedReason: "DENY_REPLAY" },
+  { id: "wrong_agent", tag: "WRONG AGENT", title: "Different valid agent credential", detail: "Another agent presents authority to a challenge issued for this agent.", expectedDecision: "DENY", expectedReason: "DENY_SUBJECT_MISMATCH" },
+];
 type Result = {
   correlation_id: string;
   scenario: Scenario;
   decision: string;
   reason: string;
+  handler_invoked: boolean;
   handler_invocations: number;
   requested_amount_minor: number;
+  requested_resource: string;
+  requested_category: string;
+  requested_description: string;
   authorized_max_amount_minor: number;
   currency: string;
   authorized_currency: string;
@@ -36,9 +66,11 @@ export default function Home() {
   const [pending, setPending] = useState<Scenario | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
+  const [results, setResults] = useState<Partial<Record<Scenario, Result>>>({});
+  const [runningSuite, setRunningSuite] = useState(false);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
 
-  async function run(scenario: Scenario) {
+  async function execute(scenario: Scenario): Promise<Result | null> {
     setPending(scenario);
     setProgress(0);
     setError(null);
@@ -62,16 +94,37 @@ export default function Home() {
         return;
       }
       if (!response.ok) throw new Error();
-      setResult(await response.json() as Result);
+      const executed = await response.json() as Result;
+      setResult(executed);
+      setResults((current) => ({ ...current, [scenario]: executed }));
+      return executed;
     } catch {
       setError({
         title: "Runtime did not return a verified result",
         body: "The isolated Maritime runtimes may still be waking. No automatic retry was attempted. Wait a few seconds, then try again.",
       });
+      return null;
     } finally {
       timers.forEach(window.clearTimeout);
       setPending(null);
     }
+  }
+
+  async function run(scenario: Scenario) {
+    setResults({});
+    await execute(scenario);
+  }
+
+  async function runAll() {
+    setRunningSuite(true);
+    setResults({});
+    setResult(null);
+    setError(null);
+    for (const scenario of scenarios) {
+      const executed = await execute(scenario.id);
+      if (executed === null) break;
+    }
+    setRunningSuite(false);
   }
 
   const progressCopy = [
@@ -84,9 +137,16 @@ export default function Home() {
   const money = (minor: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100) + ` ${currency}`;
   const requested = result ? money(result.requested_amount_minor, result.currency) : "";
   const allowed = result?.decision === "ALLOW";
+  const selectedScenario = result
+    ? scenarios.find((scenario) => scenario.id === result.scenario)
+    : null;
   const decisionExplanation = allowed
-    ? "The receiver verified the signed delegation and this exact request stayed within every bound. It called the protected create_work_order handler."
-    : "The receiver recognized the same agent and work-order scope, but the requested amount exceeded the signed ceiling. It rejected the request without calling the protected handler.";
+    ? "The receiver verified the signed delegation and exact request, then called the protected create_work_order handler."
+    : selectedScenario?.detail ?? "The receiver rejected the request before protected code ran.";
+  const passed = (scenario: typeof scenarios[number], executed: Result | undefined) =>
+    executed?.decision === scenario.expectedDecision &&
+    executed.reason === scenario.expectedReason &&
+    executed.handler_invoked === (scenario.expectedDecision === "ALLOW");
 
   return (
     <main>
@@ -101,7 +161,7 @@ export default function Home() {
       <section className="hero">
         <p className="eyebrow">MARITIME × RATIFY</p>
         <h1>An agent can ask.<br /><em>Authority decides.</em></h1>
-        <p className="lede">Run the same Maritime agent twice. A signed delegation permits one work order and rejects the other before protected code runs.</p>
+        <p className="lede">Run one permitted work order and seven adversarial requests against the same Maritime-hosted authorization boundary. Every denial must stop before protected code runs.</p>
         <div className="hero-links" aria-label="Learn about the technologies in this pilot">
           <a href="https://maritime.sh/" target="_blank" rel="noreferrer">About Maritime ↗</a>
           <a href="https://ratifyprotocol.com/" target="_blank" rel="noreferrer">About Ratify Protocol ↗</a>
@@ -127,23 +187,50 @@ export default function Home() {
         </div>
 
         <div className="lab-head">
-          <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Choose a work order</h2></div>
-          <p>Same agent · Same site · One changed value</p>
+          <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus seven adversarial denials</h2></div>
+          <button className="run-all" onClick={runAll} disabled={pending !== null || runningSuite}>
+            {runningSuite ? `Running ${Object.keys(results).length + 1} of 8…` : "Run full adversarial gate →"}
+          </button>
         </div>
         <div className="scenario-grid">
-          <button onClick={() => run("allow")} disabled={pending !== null}>
-            <span className="scenario-tag">WITHIN AUTHORITY</span>
-            <strong>Inspect and repair loading-bay lighting</strong>
-            <span className="money">$420.00 <small>USD</small></span>
-            <span className="button-action">{pending === "allow" ? "Running…" : "Run allowed scenario →"}</span>
-          </button>
-          <button onClick={() => run("over_limit")} disabled={pending !== null}>
-            <span className="scenario-tag">ABOVE SIGNED LIMIT</span>
-            <strong>Inspect and repair loading-bay lighting</strong>
-            <span className="money">$501.00 <small>USD</small></span>
-            <span className="button-action">{pending === "over_limit" ? "Running…" : "Run denied scenario →"}</span>
-          </button>
+          {scenarios.map((scenario) => {
+            const executed = results[scenario.id];
+            return <button
+              key={scenario.id}
+              onClick={() => run(scenario.id)}
+              disabled={pending !== null || runningSuite}
+              className={executed ? (passed(scenario, executed) ? "scenario-pass" : "scenario-fail") : ""}
+            >
+              <span className="scenario-tag">{scenario.tag}</span>
+              <strong>{scenario.title}</strong>
+              <span className="scenario-detail">{scenario.detail}</span>
+              <span className="button-action">
+                {pending === scenario.id
+                  ? "Running…"
+                  : executed
+                    ? `${executed.reason} · ${passed(scenario, executed) ? "PASS" : "CHECK"}`
+                    : "Run scenario →"}
+              </span>
+            </button>;
+          })}
         </div>
+
+        {Object.keys(results).length > 1 && <section className="gate-results" aria-labelledby="gate-results-title">
+          <div><p className="kicker">EXECUTED EVIDENCE</p><h3 id="gate-results-title">Adversarial gate results</h3></div>
+          <ol>
+            {scenarios.map((scenario, index) => {
+              const executed = results[scenario.id];
+              return <li key={scenario.id}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div><b>{scenario.tag}</b><small>{executed ? executed.reason : "Waiting"}</small></div>
+                <strong className={executed && passed(scenario, executed) ? "pass" : ""}>
+                  {executed ? (passed(scenario, executed) ? "PASS" : "CHECK") : "—"}
+                </strong>
+              </li>;
+            })}
+          </ol>
+          <p>Every row is populated from a request executed against the deployed Maritime agent and receiver. No outcome is prefilled.</p>
+        </section>}
 
         {(pending || result || error) && <div className="execution" aria-live="polite">
           <div className="stages" aria-label="Executed request stages">
@@ -172,10 +259,14 @@ export default function Home() {
               <div><dt>Requested</dt><dd>{requested}</dd></div>
               <div><dt>Authorized bound</dt><dd>≤ {money(result.authorized_max_amount_minor, result.authorized_currency)}</dd></div>
               <div><dt>Receiver reason</dt><dd><code>{result.reason}</code></dd></div>
+              <div><dt>Handler entered for this request</dt><dd>{result.handler_invoked ? "Yes" : "No"}</dd></div>
               <div><dt>Shared receiver handler count</dt><dd>{result.handler_invocations}</dd></div>
+              <div><dt>Requested resource</dt><dd><code>{result.requested_resource}</code></dd></div>
+              <div><dt>Requested category</dt><dd>{result.requested_category}</dd></div>
+              <div><dt>Requested operation detail</dt><dd>{result.requested_description}</dd></div>
               <div><dt>Delegated scope</dt><dd><code>{result.delegation_scope}</code></dd></div>
-              <div><dt>Resource</dt><dd><code>{result.delegation_resource}</code></dd></div>
-              <div><dt>Category</dt><dd>{result.delegation_category}</dd></div>
+              <div><dt>Delegated resource</dt><dd><code>{result.delegation_resource}</code></dd></div>
+              <div><dt>Delegated category</dt><dd>{result.delegation_category}</dd></div>
               <div><dt>Delegation expires</dt><dd>{new Date(result.delegation_expires_at * 1000).toLocaleString()}</dd></div>
             </dl>
             <p className="counter-note">This is a receiver-wide counter shared by every demo visitor, not your session count.</p>
@@ -242,7 +333,7 @@ export default function Home() {
             <p className="kicker">WHAT THE LIVE RESULT PROVES</p>
             <ul>
               <li>The same agent can be allowed or denied without changing its identity.</li>
-              <li>An over-limit request is stopped before the protected handler.</li>
+              <li>Seven distinct authority failures are stopped before the protected handler.</li>
               <li>The displayed scope, amount, bound, and expiry come from live execution evidence.</li>
             </ul>
           </article>
