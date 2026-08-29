@@ -383,17 +383,21 @@ def _scenario_authorities(
     try:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         if type(payload) is not dict or set(payload) != {
-            "expired", "revoked", "wrong_agent"
+            "expired", "revoked", "wrong_agent",
+            "wrong_agent_fixture_private_key",
         }:
             raise ValueError
         expired = decode_delegation_cert(payload["expired"])
         revoked = decode_delegation_cert(payload["revoked"])
         wrong_agent = decode_delegation_cert(payload["wrong_agent"])
+        fixture_private = payload["wrong_agent_fixture_private_key"]
+        if type(fixture_private) is not dict or set(fixture_private) != {
+            "ed25519", "ml_dsa_65"
+        }:
+            raise ValueError
         wrong_private = HybridPrivateKey(
-            ed25519=_private_key("RATIFY_WRONG_AGENT_ED25519_PRIVATE_B64", 32),
-            ml_dsa_65=_private_key(
-                "RATIFY_WRONG_AGENT_ML_DSA_65_PRIVATE_B64", 4032
-            ),
+            ed25519=_decode_fixture_key(fixture_private["ed25519"], 32),
+            ml_dsa_65=_decode_fixture_key(fixture_private["ml_dsa_65"], 4032),
         )
         authorities = {
             "expired": _authority_fixture(expired, primary.agent_private_key),
@@ -453,3 +457,12 @@ def _private_key(name: str, expected_bytes: int) -> bytes:
     if len(value) != expected_bytes:
         raise RuntimeError(f"invalid private key setting: {name}")
     return value
+
+
+def _decode_fixture_key(value: object, expected_bytes: int) -> bytes:
+    if not isinstance(value, str):
+        raise ValueError
+    decoded = base64.b64decode(value, validate=True)
+    if len(decoded) != expected_bytes:
+        raise ValueError
+    return decoded

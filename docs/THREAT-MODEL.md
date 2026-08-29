@@ -96,6 +96,13 @@ check. The in-process `/chat` limiter is suitable only for the bounded public
 demonstration; it resets on restart and is not shared across replicas.
 Production exposure still requires ingress-level rate and body limits.
 
+The wrong-agent acceptance fixture includes a deliberately inspectable signing
+key in the adversarial fixture bundle. Its certificate names a different
+subject from the receiver's configured agent, so it cannot authorize the
+protected handler. The actual authorized agent's private key remains a
+Maritime runtime secret. This separation avoids treating a public negative-test
+fixture as production authority material.
+
 The deployed Maritime gateway was observed on 2026-08-23 to remove the standard
 `Authorization` header before forwarding public requests. The demo and receiver
 boundaries therefore accept their separate credentials only through

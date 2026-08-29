@@ -76,18 +76,12 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
         "RATIFY_REVOKED_CERT_IDS": delegations["revoked"].cert_id,
     })
     wire = encode_delegation_cert(delegations["active"])
-    scenario_wire = _scenario_authorities_wire(delegations)
+    scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
     _write_private_env(output / "agent.env", {
         "RATIFY_DELEGATION_PATH": "/app/deployment/delegation.json",
         "RATIFY_SCENARIO_AUTHORITIES_PATH": "/app/deployment/scenario-authorities.json",
         "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(agent_private.ed25519),
         "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(agent_private.ml_dsa_65),
-        "RATIFY_WRONG_AGENT_ED25519_PRIVATE_B64": _b64(
-            wrong_agent_private.ed25519
-        ),
-        "RATIFY_WRONG_AGENT_ML_DSA_65_PRIVATE_B64": _b64(
-            wrong_agent_private.ml_dsa_65
-        ),
         "RATIFY_RECEIVER_TOKEN": receiver_token,
         "RATIFY_DEMO_TOKEN": demo_token,
         "RATIFY_MODEL_MODE": "deterministic",
@@ -138,7 +132,7 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
         raise RuntimeError("principal artifact is inconsistent")
     _prepare_output(output)
     wire = encode_delegation_cert(delegations["active"])
-    scenario_wire = _scenario_authorities_wire(delegations)
+    scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
     _write_manifest(
@@ -194,10 +188,15 @@ def _issue_scenario_delegations(
     }
 
 
-def _scenario_authorities_wire(delegations: dict[str, object]) -> str:
+def _scenario_authorities_wire(
+    delegations: dict[str, object], wrong_agent_private: HybridPrivateKey
+) -> str:
     return json.dumps({
-        name: encode_delegation_cert(delegations[name])
-        for name in ("expired", "revoked", "wrong_agent")
+        **{
+            name: encode_delegation_cert(delegations[name])
+            for name in ("expired", "revoked", "wrong_agent")
+        },
+        "wrong_agent_fixture_private_key": _private(wrong_agent_private),
     }, sort_keys=True, separators=(",", ":"))
 
 

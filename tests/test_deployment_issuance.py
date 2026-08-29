@@ -43,7 +43,10 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert "RATIFY_AGENT_ED25519_PRIVATE_B64" in agent
     assert agent["RATIFY_DELEGATION_PATH"] == "/app/deployment/delegation.json"
     assert agent["RATIFY_SCENARIO_AUTHORITIES_PATH"] == "/app/deployment/scenario-authorities.json"
-    assert "RATIFY_WRONG_AGENT_ED25519_PRIVATE_B64" in agent
+    assert "RATIFY_WRONG_AGENT_ED25519_PRIVATE_B64" not in agent
+    assert set(scenarios["wrong_agent_fixture_private_key"]) == {
+        "ed25519", "ml_dsa_65"
+    }
     assert receiver["RATIFY_REVOKED_CERT_IDS"] == decode_delegation_cert(
         scenarios["revoked"]
     ).cert_id

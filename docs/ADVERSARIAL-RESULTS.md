@@ -21,6 +21,11 @@ the consumed proof reference. The recorded result describes the second,
 rejected attempt. This is why the receiver-wide counter can increase during
 that scenario even though `handler_invoked` is false for the replay itself.
 
+The wrong-agent case uses an inspectable negative-test key embedded with its
+fixture certificate. That certificate is validly signed by the demo principal
+but names a subject the receiver does not accept. The authorized agent key is
+separate and remains a Maritime secret.
+
 Run and record the public gate from a clean checkout:
 
 ```bash
