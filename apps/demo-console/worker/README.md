@@ -7,17 +7,12 @@ exactly one of these bodies:
 Production endpoint: `https://maritime-api.ratifyprotocol.com/api/scenario`.
 The source-controlled deployment disables `workers.dev` and preview URLs.
 
-```json
-{"scenario":"allow"}
-```
+The accepted values are `allow`, `over_limit`, `wrong_resource`,
+`altered_operation`, `expired`, `revoked`, `replay`, and `wrong_agent`.
 
-```json
-{"scenario":"over_limit"}
-```
-
-It constructs the agent request from scratch, projects the response onto six
-public fields, and uses one Durable Object to enforce exact five-per-client and
-twenty-global requests per minute. The client key comes only from
+It constructs the agent request from scratch, projects the response onto a
+closed set of public fields, and uses one Durable Object to enforce exact
+ten-per-client and eighty-global requests per minute. The client key comes only from
 `CF-Connecting-IP`. Limiter failure denies the request.
 
 Limiter correctness depends on the Durable Object storage input gate and its
