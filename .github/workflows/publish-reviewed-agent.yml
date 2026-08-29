@@ -8,10 +8,10 @@ permissions:
   packages: write
 
 env:
-  SOURCE_REVISION: 0a5e8b1a1e53d8dd2ffdf5192c32dee8692ff39c
+  SOURCE_REVISION: 686d21b0812e0aeb8d526d92ec653f295b847932
   DELEGATION_SHA256: ae7e30be57e537fd5aa9c6082dc10289ac79565e21f1dd55a148d9ba4a86d832
   SCENARIO_AUTHORITIES_SHA256: 9a5eb60b368075b7fd9f77722ca4bc03895d8bd64e0d1595a9549ea106348361
-  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:0a5e8b1
+  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:686d21b
 
 jobs:
   publish:
@@ -25,8 +25,8 @@ jobs:
       - name: Require deployment delegation
         env:
           RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
-          RATIFY_SCENARIO_AUTHORITIES_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_B64 }}
-        run: test -n "$RATIFY_DEPLOYMENT_DELEGATION_B64" && test -n "$RATIFY_SCENARIO_AUTHORITIES_B64"
+          RATIFY_SCENARIO_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 }}
+        run: test -n "$RATIFY_DEPLOYMENT_DELEGATION_B64" && test -n "$RATIFY_SCENARIO_AUTHORITIES_GZIP_B64"
 
       - name: Authenticate to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -34,12 +34,12 @@ jobs:
       - name: Build reviewed agent
         env:
           RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
-          RATIFY_SCENARIO_AUTHORITIES_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_B64 }}
+          RATIFY_SCENARIO_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 }}
         run: |
           docker build \
             --no-cache \
             --secret id=ratify_delegation_b64,env=RATIFY_DEPLOYMENT_DELEGATION_B64 \
-            --secret id=ratify_scenario_authorities_b64,env=RATIFY_SCENARIO_AUTHORITIES_B64 \
+            --secret id=ratify_scenario_authorities_gzip_b64,env=RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 \
             --build-arg RATIFY_DELEGATION_SHA256="$DELEGATION_SHA256" \
             --build-arg RATIFY_SCENARIO_AUTHORITIES_SHA256="$SCENARIO_AUTHORITIES_SHA256" \
             --label org.opencontainers.image.source=https://github.com/identities-ai/ratify-maritime-reference \
