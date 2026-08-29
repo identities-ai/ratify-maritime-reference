@@ -427,9 +427,9 @@ def test_action_mutation_during_verification_cannot_change_handler_input(
     captured = []
     real_handler = receiver._invoke_handler
 
-    def capture(snapshot):
+    def capture(snapshot, verification_status):
         captured.append(snapshot)
-        return real_handler(snapshot)
+        return real_handler(snapshot, verification_status)
 
     receiver.revocation = BlockingRevocation()
     monkeypatch.setattr(receiver, "_invoke_handler", capture)

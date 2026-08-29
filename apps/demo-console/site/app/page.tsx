@@ -44,6 +44,8 @@ type Result = {
   scenario: Scenario;
   decision: string;
   reason: string;
+  decided_by: string;
+  verification_status: string | null;
   handler_invoked: boolean;
   handler_invocations: number;
   requested_amount_minor: number;
@@ -60,6 +62,14 @@ type Result = {
   delegation_issued_at: number;
   delegation_expires_at: number;
   timestamp: string;
+};
+
+const deciderLabels: Record<string, string> = {
+  ratify_verification: "Ratify proof verification",
+  receiver_policy: "Receiver-local policy",
+  receiver_precheck: "Receiver request binding",
+  proof_carrier: "Proof-carrier binding",
+  receiver_error: "Receiver fault, failed closed",
 };
 
 export default function Home() {
@@ -192,6 +202,7 @@ export default function Home() {
             {runningSuite ? `Running ${Object.keys(results).length + 1} of 8…` : "Run full adversarial gate →"}
           </button>
         </div>
+        <p className="harness-note">Every scenario dispatches a fixed, enumerated action. This public demo runs a deterministic tool-call harness in place of a reasoning model, because the model is not the security decision. The receiver reaches its decision without trusting the prompt, the model, or the agent&rsquo;s transport credential.</p>
         <div className="scenario-grid">
           {scenarios.map((scenario) => {
             const executed = results[scenario.id];
@@ -259,6 +270,7 @@ export default function Home() {
               <div><dt>Requested</dt><dd>{requested}</dd></div>
               <div><dt>Authorized bound</dt><dd>≤ {money(result.authorized_max_amount_minor, result.authorized_currency)}</dd></div>
               <div><dt>Receiver reason</dt><dd><code>{result.reason}</code></dd></div>
+              <div><dt>Decided by</dt><dd>{deciderLabels[result.decided_by] ?? result.decided_by}</dd></div>
               <div><dt>Handler entered for this request</dt><dd>{result.handler_invoked ? "Yes" : "No"}</dd></div>
               <div><dt>Shared receiver handler count</dt><dd>{result.handler_invocations}</dd></div>
               <div><dt>Requested resource</dt><dd><code>{result.requested_resource}</code></dd></div>
@@ -270,7 +282,7 @@ export default function Home() {
               <div><dt>Delegation expires</dt><dd>{new Date(result.delegation_expires_at * 1000).toLocaleString()}</dd></div>
             </dl>
             <p className="counter-note">This is a receiver-wide counter shared by every demo visitor, not your session count.</p>
-            <details><summary>Technical evidence</summary><p>Audience <code>{result.delegation_audience}</code> · Delegation issued {new Date(result.delegation_issued_at * 1000).toLocaleString()} · Correlation {result.correlation_id} · Executed {new Date(result.timestamp).toLocaleString()} · No keys, proof material, or private identifiers are displayed.</p></details>
+            <details><summary>Technical evidence</summary><p>Deciding layer <code>{result.decided_by}</code> · Ratify verification status <code>{result.verification_status ?? "not reached"}</code> · Audience <code>{result.delegation_audience}</code> · Delegation issued {new Date(result.delegation_issued_at * 1000).toLocaleString()} · Correlation {result.correlation_id} · Executed {new Date(result.timestamp).toLocaleString()} · No keys, proof material, or private identifiers are displayed.</p></details>
           </div>}
         </div>}
       </section>
@@ -343,6 +355,8 @@ export default function Home() {
               <li>This is an open reference implementation, not a production service or Maritime endorsement.</li>
               <li>The receiver is separately deployed but currently operated by Ratify for this pilot.</li>
               <li>The shared counter is system-wide evidence, not a visitor-specific activity record.</li>
+            <li>Scenarios are enumerated rather than chosen by a model, and every result on this page is reported by the Ratify-operated deployment itself.</li>
+            <li>Deployment identifiers in the published results file are recorded by the operator. They are not yet attested by Maritime.</li>
             </ul>
           </article>
         </div>

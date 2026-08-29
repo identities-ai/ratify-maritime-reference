@@ -195,6 +195,9 @@ export async function handleRequest(
     if (
       typeof value.decision !== "string" ||
       typeof value.reason !== "string" ||
+      typeof value.decided_by !== "string" ||
+      !(typeof value.verification_status === "string" ||
+        value.verification_status === null) ||
       typeof value.handler_invoked !== "boolean" ||
       typeof value.handler_invocations !== "number" ||
       typeof value.requested_amount_minor !== "number" ||
@@ -218,6 +221,8 @@ export async function handleRequest(
       scenario,
       decision: value.decision,
       reason: value.reason,
+      decided_by: value.decided_by,
+      verification_status: value.verification_status,
       handler_invoked: value.handler_invoked,
       handler_invocations: value.handler_invocations,
       requested_amount_minor: value.requested_amount_minor,

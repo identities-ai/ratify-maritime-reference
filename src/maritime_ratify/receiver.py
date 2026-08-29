@@ -163,40 +163,40 @@ class WorkOrderReceiver:
         self, action: WorkOrder, bundle: ProofBundle, *, caller_id: str = "local"
     ) -> dict[str, Any]:
         if type(action) is not WorkOrder or type(bundle) is not ProofBundle:
-            return self._deny("DENY_INVALID_REQUEST")
+            return self._deny("DENY_INVALID_REQUEST", "receiver_precheck")
         try:
             action = replace(action)
             bundle = copy.deepcopy(bundle)
             if type(action) is not WorkOrder or type(bundle) is not ProofBundle or any(
                 type(cert) is not DelegationCert for cert in bundle.delegations
             ):
-                return self._deny("DENY_INVALID_REQUEST")
+                return self._deny("DENY_INVALID_REQUEST", "receiver_precheck")
             canonical_action = action.canonical_bytes()
         except Exception:
-            return self._deny("DENY_INVALID_REQUEST")
+            return self._deny("DENY_INVALID_REQUEST", "receiver_precheck")
 
         with self._lock:
             now = self._clock()
             self._reap_pending(now)
             if self.challenge_store is None or self.revocation is None:
-                return self._deny("DENY_VERIFIER_UNAVAILABLE")
+                return self._deny("DENY_VERIFIER_UNAVAILABLE", "receiver_precheck")
             pending = self._pending.get(action.request_id)
             if pending is None:
-                return self._deny("DENY_REPLAY")
+                return self._deny("DENY_REPLAY", "receiver_precheck")
             if not caller_id or caller_id != pending.caller_id:
-                return self._deny("DENY_CALLER_MISMATCH")
+                return self._deny("DENY_CALLER_MISMATCH", "receiver_precheck")
             if canonical_action != pending.canonical_action:
-                return self._deny("DENY_OPERATION_MISMATCH")
+                return self._deny("DENY_OPERATION_MISMATCH", "receiver_precheck")
             if bundle.agent_id != pending.expected_agent_id:
-                return self._deny("DENY_SUBJECT_MISMATCH")
+                return self._deny("DENY_SUBJECT_MISMATCH", "receiver_precheck")
             if not bundle.delegations:
-                return self._deny("DENY_INVALID_REQUEST")
+                return self._deny("DENY_INVALID_REQUEST", "receiver_precheck")
             root = bundle.delegations[-1]
             if (
                 root.issuer_id != self.trusted_root_id
                 or root.issuer_pub_key != self.trusted_root_public_key
             ):
-                return self._deny("DENY_UNTRUSTED_ISSUER")
+                return self._deny("DENY_UNTRUSTED_ISSUER", "receiver_precheck")
 
             try:
                 result = verify_bundle(
@@ -226,18 +226,22 @@ class WorkOrderReceiver:
                 )
             except Exception:
                 self._pending.pop(action.request_id, None)
-                return self._deny("DENY_VERIFIER_UNAVAILABLE")
+                return self._deny("DENY_VERIFIER_UNAVAILABLE", "ratify_verification")
             if not result.valid:
                 self._pending.pop(action.request_id, None)
-                return self._deny(self._reason_code(result.identity_status, result.error_reason))
+                return self._deny(
+                    self._reason_code(result.identity_status, result.error_reason),
+                    "ratify_verification",
+                    result.identity_status,
+                )
 
             policy_reason = self._evaluate_local_policy(action, bundle)
             if policy_reason is not None:
                 self._pending.pop(action.request_id, None)
-                return self._deny(policy_reason)
+                return self._deny(policy_reason, "receiver_policy", result.identity_status)
 
             self._pending.pop(action.request_id, None)
-            return self._invoke_handler(action)
+            return self._invoke_handler(action, result.identity_status)
 
     def _evaluate_local_policy(
         self, action: WorkOrder, bundle: ProofBundle
@@ -258,11 +262,15 @@ class WorkOrderReceiver:
             return "DENY_LIMIT_EXCEEDED"
         return None
 
-    def _invoke_handler(self, action: WorkOrder) -> dict[str, Any]:
+    def _invoke_handler(
+        self, action: WorkOrder, verification_status: str
+    ) -> dict[str, Any]:
         self._handler_invocations += 1
         return {
             "decision": "ALLOW",
             "reason": "ALLOW",
+            "decided_by": "ratify_verification",
+            "verification_status": verification_status,
             "handler_invoked": True,
             "handler_invocations": self._handler_invocations,
             "work_order_id": f"demo-{action.request_id}",
@@ -275,10 +283,17 @@ class WorkOrderReceiver:
             if pending.expires_at > now
         }
 
-    def _deny(self, reason: str) -> dict[str, Any]:
+    def _deny(
+        self,
+        reason: str,
+        decided_by: str,
+        verification_status: str | None = None,
+    ) -> dict[str, Any]:
         return {
             "decision": "DENY",
             "reason": reason,
+            "decided_by": decided_by,
+            "verification_status": verification_status,
             "handler_invoked": False,
             "handler_invocations": self._handler_invocations,
         }
