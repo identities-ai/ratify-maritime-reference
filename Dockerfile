@@ -21,14 +21,14 @@ RUN uv sync --frozen --no-dev --no-install-project --python 3.12
 COPY src /app/src
 COPY apps/agent /app/apps/agent
 RUN --mount=type=secret,id=ratify_delegation_b64 \
-    --mount=type=secret,id=ratify_scenario_authorities_b64 \
+    --mount=type=secret,id=ratify_scenario_authorities_gzip_b64 \
     set -eu; \
-    if [ -s /run/secrets/ratify_delegation_b64 ] && [ -s /run/secrets/ratify_scenario_authorities_b64 ]; then \
+    if [ -s /run/secrets/ratify_delegation_b64 ] && [ -s /run/secrets/ratify_scenario_authorities_gzip_b64 ]; then \
         test -n "$RATIFY_DELEGATION_SHA256"; \
         test -n "$RATIFY_SCENARIO_AUTHORITIES_SHA256"; \
         mkdir -p /app/deployment; \
         base64 --decode /run/secrets/ratify_delegation_b64 > /app/deployment/delegation.json; \
-        base64 --decode /run/secrets/ratify_scenario_authorities_b64 > /app/deployment/scenario-authorities.json; \
+        base64 --decode /run/secrets/ratify_scenario_authorities_gzip_b64 | gzip --decompress > /app/deployment/scenario-authorities.json; \
         test "$(sha256sum /app/deployment/delegation.json | cut -d ' ' -f 1)" = "$RATIFY_DELEGATION_SHA256"; \
         test "$(sha256sum /app/deployment/scenario-authorities.json | cut -d ' ' -f 1)" = "$RATIFY_SCENARIO_AUTHORITIES_SHA256"; \
         chmod 0444 /app/deployment/delegation.json /app/deployment/scenario-authorities.json; \

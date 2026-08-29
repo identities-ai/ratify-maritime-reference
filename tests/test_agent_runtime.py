@@ -344,7 +344,8 @@ def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
 
     agent_dockerfile = dockerfiles[0].read_text()
     assert "--mount=type=secret,id=ratify_delegation_b64" in agent_dockerfile
-    assert "--mount=type=secret,id=ratify_scenario_authorities_b64" in agent_dockerfile
+    assert "--mount=type=secret,id=ratify_scenario_authorities_gzip_b64" in agent_dockerfile
+    assert "gzip --decompress" in agent_dockerfile
     assert "RATIFY_DELEGATION_SHA256" in agent_dockerfile
     assert "RATIFY_SCENARIO_AUTHORITIES_SHA256" in agent_dockerfile
     assert "RATIFY_DELEGATION_PATH=/app/deployment/delegation.json" in agent_dockerfile
