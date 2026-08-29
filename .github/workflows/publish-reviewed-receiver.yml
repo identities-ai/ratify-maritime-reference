@@ -8,7 +8,7 @@ permissions:
   packages: write
 
 env:
-  SOURCE_REVISION: 97dcfe2d031987d8321196220b7ba9f33b8df8b8
+  SOURCE_REVISION: 97dcfe2030ae9ffeaa67b5117a42e29706bd9c26
   IMAGE: ghcr.io/identities-ai/ratify-maritime-receiver:97dcfe2
 
 jobs:
