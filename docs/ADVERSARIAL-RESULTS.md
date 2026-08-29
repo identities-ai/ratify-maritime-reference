@@ -30,15 +30,22 @@ Run and record the public gate from a clean checkout:
 
 ```bash
 uv run --python 3.12 python scripts/run_live_adversarial_gate.py \
-  evidence/adversarial-results.json
+  evidence/adversarial-results.json \
+  --agent-source-revision AGENT_COMMIT \
+  --agent-image AGENT_IMAGE_DIGEST \
+  --receiver-source-revision RECEIVER_COMMIT \
+  --receiver-image RECEIVER_IMAGE_DIGEST \
+  --worker-version WORKER_VERSION
 ```
 
 The runner sends the same closed scenario identifiers accepted by the public
 console. It fails unless every decision, stable reason code, and per-request
 handler fact matches the table. The artifact also records the execution time,
 endpoint, repository revision, redacted execution facts, and SHA-256 of the
-canonical evidence object. It never records credentials, proofs, private keys,
-or unredacted certificates.
+canonical evidence object. It also records the exact agent and receiver source
+revisions, immutable image digests, and scenario Worker version supplied by the
+operator. It never records credentials, proofs, private keys, or unredacted
+certificates.
 
 Recompute the recorded evidence hash:
 
