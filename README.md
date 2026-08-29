@@ -39,9 +39,11 @@ uv run --python 3.12 pytest
 ```
 
 The gate requires no model API and includes a real TCP Streamable HTTP flow
-through LangChain, the proof interceptor, and the receiver. It holds the agent
-identity constant while allowing an in-bounds request and denying an
-over-limit request.
+through LangChain, the proof interceptor, and the receiver. It executes one
+in-bounds allow plus exceeded-limit, wrong-resource, altered-operation,
+expired, revoked, replayed, and wrong-agent denials. See
+[`docs/ADVERSARIAL-RESULTS.md`](docs/ADVERSARIAL-RESULTS.md) for the live result
+contract and inspectable artifact procedure.
 
 ## Maritime agent runtime
 
@@ -49,9 +51,9 @@ The root `Dockerfile` is the Maritime GitHub-source build for the agent. It
 starts a long-lived server on the injected `PORT` and exposes:
 
 - `GET /health`: side-effect-free readiness
-- `POST /chat`: accepts only the enumerated `allow` and `over_limit` demo
-  scenarios, requires `X-Ratify-Demo-Token: Bearer <RATIFY_DEMO_TOKEN>`, and
-  applies an in-process request limit. The dedicated header avoids Maritime's
+- `POST /chat`: accepts only the eight enumerated adversarial-gate scenarios,
+  requires `X-Ratify-Demo-Token: Bearer <RATIFY_DEMO_TOKEN>`, and applies an
+  in-process request limit. The dedicated header avoids Maritime's
   platform-level use of `Authorization`.
 
 The default `RATIFY_MODEL_MODE=deterministic` path exercises the real LangChain
@@ -123,7 +125,7 @@ The frozen build requirements are in
 ## Demo scenario proxy
 
 `apps/demo-console/worker/` contains the reviewed-before-deployment Cloudflare
-Worker boundary for the static console. It accepts only the two enumerated
+Worker boundary for the static console. It accepts only the eight enumerated
 scenarios, constructs the Maritime agent request server-side, projects the
 response onto documented public fields, and keeps the demo credential in a
 Cloudflare secret binding. An exact Durable Object limiter applies both a

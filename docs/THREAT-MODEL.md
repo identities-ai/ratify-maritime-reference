@@ -71,7 +71,7 @@ after 60 seconds, and consumes it once. The model-visible tool schema contains
 business arguments only.
 
 The Stage 4 agent container exposes a side-effect-free health route and an
-authenticated `/chat` route limited to the enumerated `allow` and `over_limit`
+authenticated `/chat` route limited to the eight enumerated full-gate
 scenarios. Its demo bearer credential controls endpoint access only. The agent
 still constructs a Ratify presentation for every selected action, and the
 receiver independently verifies that authority before its handler runs. The
@@ -82,7 +82,9 @@ private keys, proofs, or receiver policy.
 ## Residual risks
 
 The receiver and agent are deployed on Maritime from immutable public GHCR
-digests, and the live two-runtime allow and over-limit paths are verified.
+digests. The prior deployment verified the live two-runtime allow and
+over-limit paths; the refreshed deployment must record all eight full-gate
+results before closure.
 There is still no durable shared state, ingress body limit, distributed rate
 limiting, or production handler.
 
@@ -93,6 +95,13 @@ runtime source, run as an unprivileged fixed UID, and define a local health
 check. The in-process `/chat` limiter is suitable only for the bounded public
 demonstration; it resets on restart and is not shared across replicas.
 Production exposure still requires ingress-level rate and body limits.
+
+The wrong-agent acceptance fixture includes a deliberately inspectable signing
+key in the adversarial fixture bundle. Its certificate names a different
+subject from the receiver's configured agent, so it cannot authorize the
+protected handler. The actual authorized agent's private key remains a
+Maritime runtime secret. This separation avoids treating a public negative-test
+fixture as production authority material.
 
 The deployed Maritime gateway was observed on 2026-08-23 to remove the standard
 `Authorization` header before forwarding public requests. The demo and receiver
@@ -127,10 +136,10 @@ The demo scenario proxy is a separate internet-facing component. It holds only
 the demo transport token in a Cloudflare secret binding and constructs a fresh
 agent request from a closed scenario enumeration; browser bodies, headers,
 cookies, query strings, and identifiers are never forwarded. Agent responses
-are projected onto six public fields, and authentication, rate-limit, timeout,
+are projected onto a closed set of public fields, and authentication, rate-limit, timeout,
 and backend failures map to stable redacted errors. Cross-origin responses are
 restricted to the console origin and are never cacheable. A Durable Object
-serializes the five-per-client and twenty-global one-minute budgets across
+serializes the ten-per-client and eighty-global one-minute budgets across
 Worker instances, keyed by Cloudflare's attested client address. If that
 backend fails, the proxy fails closed. The proxy stores no evidence or user
 data and remains outside the Ratify authorization decision.
@@ -142,8 +151,6 @@ expires. Verification is serialized inside one receiver process; deployment
 must measure queueing before exposing the endpoint. Agent and receiver clocks
 must also be synchronized because Ratify rejects negative challenge age.
 
-The published Ratify alpha.16 Python metadata allows `pqcrypto>=0.3.4`, but
-`pqcrypto` 1.0 removed the key-generation API used by alpha.16. This reference
-pins `pqcrypto==0.3.4` until the SDK publishes a corrected dependency range or
-compatibility update. Python is constrained below 3.14 because the specifically
-pinned 0.3.4 release publishes wheels only through CPython 3.13.
+Ratify alpha.17 carries the corrected post-quantum dependency bound used by
+this reference. Python remains constrained below 3.14 because the compatible
+post-quantum package publishes wheels only through CPython 3.13.

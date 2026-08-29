@@ -36,6 +36,13 @@ def build_app():
         trusted_root_id=required("RATIFY_ROOT_ID"),
         trusted_root_public_key=root_key,
     )
+    revoked = [
+        cert_id.strip()
+        for cert_id in os.environ.get("RATIFY_REVOKED_CERT_IDS", "").split(",")
+        if cert_id.strip()
+    ]
+    for cert_id in revoked:
+        receiver.revocation.revoke(cert_id)
     hosts = [
         host.strip() for host in required("RATIFY_ALLOWED_HOSTS").split(",")
         if host.strip()

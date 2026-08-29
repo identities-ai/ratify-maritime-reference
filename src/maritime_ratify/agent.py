@@ -37,11 +37,15 @@ class AuthorityInterceptor:
         clock: Callable[[], int],
         challenge_provider: Callable[[dict[str, Any]], Awaitable[ChallengeMaterial]],
         presentation_uploader: Callable[[WorkOrder, str], Awaitable[str]],
+        dispatch_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        replay_dispatch: bool = False,
     ) -> None:
         self._authority = authority
         self._clock = clock
         self._challenge_provider = challenge_provider
         self._presentation_uploader = presentation_uploader
+        self._dispatch_transform = dispatch_transform
+        self._replay_dispatch = replay_dispatch
 
     async def __call__(self, request: MCPToolCallRequest, handler):
         if request.name != WORK_ORDER_TOOL:
@@ -69,7 +73,13 @@ class AuthorityInterceptor:
             "currency": action.currency,
             "description": action.description,
         }
-        return await handler(request.override(headers=headers, args=dispatched_args))
+        if self._dispatch_transform is not None:
+            dispatched_args = self._dispatch_transform(dict(dispatched_args))
+        dispatched = request.override(headers=headers, args=dispatched_args)
+        result = await handler(dispatched)
+        if self._replay_dispatch:
+            return await handler(dispatched)
+        return result
 
 
 class MCPChallengeProvider:

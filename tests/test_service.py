@@ -152,6 +152,7 @@ async def _exercise_dependency_failure():
     assert result == {
         "decision": "DENY",
         "reason": "DENY_VERIFIER_UNAVAILABLE",
+        "handler_invoked": False,
         "handler_invocations": 0,
     }
     assert "redis" not in str(result)

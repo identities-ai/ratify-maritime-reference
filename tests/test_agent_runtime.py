@@ -23,6 +23,7 @@ from maritime_ratify.agent_runtime import (
     run_scenario,
     _model,
 )
+from maritime_ratify.deployment_issuance import issue_deployment
 import maritime_ratify.agent_runtime as runtime_module
 from maritime_ratify.service import create_receiver_app
 
@@ -114,6 +115,87 @@ def test_deterministic_agent_crosses_real_mcp_boundary():
     asyncio.run(_exercise_real_agent_boundary())
 
 
+def test_full_adversarial_gate_crosses_real_mcp_boundary(tmp_path, monkeypatch):
+    asyncio.run(_exercise_full_adversarial_gate(tmp_path, monkeypatch))
+
+
+async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
+    issuance = tmp_path / "issuance"
+    issue_deployment(issuance, now=int(time.time()))
+    agent_env = dict(
+        line.split("=", 1) for line in (issuance / "agent.env").read_text().splitlines()
+    )
+    receiver_env = dict(
+        line.split("=", 1)
+        for line in (issuance / "receiver.env").read_text().splitlines()
+    )
+    for name, value in agent_env.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("RATIFY_DELEGATION_PATH", str(issuance / "delegation.json"))
+    monkeypatch.setenv(
+        "RATIFY_SCENARIO_AUTHORITIES_PATH",
+        str(issuance / "scenario-authorities.json"),
+    )
+    monkeypatch.setenv("RATIFY_RECEIVER_MCP_URL", "unused")
+    monkeypatch.setenv("RATIFY_PRESENTATION_URL", "unused")
+    settings = AgentSettings.from_environment()
+    receiver = WorkOrderReceiver(
+        trusted_root_id=settings.authority.root_id,
+        trusted_root_public_key=settings.authority.root_public_key,
+    )
+    receiver.revocation.revoke(receiver_env["RATIFY_REVOKED_CERT_IDS"])
+    port = _unused_port()
+    receiver_app = create_receiver_app(
+        receiver=receiver,
+        authenticator=CallerAuthenticator({
+            settings.receiver_token: "maritime-agent"
+        }),
+        presentations=PresentationRegistry(),
+        expected_agent_id=settings.authority.agent_id,
+        allowed_hosts=[f"127.0.0.1:{port}"],
+    )
+    server = uvicorn.Server(uvicorn.Config(
+        receiver_app, host="127.0.0.1", port=port, log_level="error"
+    ))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        await asyncio.sleep(0.01)
+    assert server.started
+    settings = AgentSettings(
+        authority=settings.authority,
+        scenario_authorities=settings.scenario_authorities,
+        receiver_mcp_url=f"http://127.0.0.1:{port}/mcp/",
+        presentation_url=f"http://127.0.0.1:{port}/presentations",
+        receiver_token=settings.receiver_token,
+        demo_token=settings.demo_token,
+        model_mode="deterministic",
+        model_id=None,
+    )
+    expected = {
+        "allow": ("ALLOW", "ALLOW", True),
+        "over_limit": ("DENY", "DENY_LIMIT_EXCEEDED", False),
+        "wrong_resource": ("DENY", "DENY_RESOURCE_MISMATCH", False),
+        "altered_operation": ("DENY", "DENY_OPERATION_MISMATCH", False),
+        "expired": ("DENY", "DENY_EXPIRED", False),
+        "revoked": ("DENY", "DENY_REVOKED", False),
+        "replay": ("DENY", "DENY_REPLAY", False),
+        "wrong_agent": ("DENY", "DENY_SUBJECT_MISMATCH", False),
+    }
+    try:
+        for scenario, outcome in expected.items():
+            result = await run_scenario(settings, scenario)
+            assert (
+                result["decision"], result["reason"], result["handler_invoked"]
+            ) == outcome
+        assert receiver.handler_invocations == 2
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+
+
 async def _exercise_real_agent_boundary():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
@@ -142,6 +224,7 @@ async def _exercise_real_agent_boundary():
     try:
         settings = AgentSettings(
             authority=authority,
+            scenario_authorities={},
             receiver_mcp_url=f"http://127.0.0.1:{port}/mcp/",
             presentation_url=f"http://127.0.0.1:{port}/presentations",
             receiver_token="agent-token",
@@ -153,6 +236,7 @@ async def _exercise_real_agent_boundary():
         denied = await run_scenario(settings, "over_limit")
         assert allowed["decision"] == "ALLOW"
         assert allowed["handler_invocations"] == 1
+        assert allowed["handler_invoked"] is True
         assert allowed["requested_amount_minor"] == 42_000
         assert allowed["authorized_max_amount_minor"] == 50_000
         assert allowed["currency"] == "USD"
@@ -166,6 +250,7 @@ async def _exercise_real_agent_boundary():
         assert denied["decision"] == "DENY"
         assert denied["reason"] == "DENY_LIMIT_EXCEEDED"
         assert denied["handler_invocations"] == 1
+        assert denied["handler_invoked"] is False
         assert denied["requested_amount_minor"] == 50_100
         assert denied["authorized_max_amount_minor"] == 50_000
         assert denied["delegation_expires_at"] == authority.delegation.expires_at
@@ -259,7 +344,10 @@ def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
 
     agent_dockerfile = dockerfiles[0].read_text()
     assert "--mount=type=secret,id=ratify_delegation_b64" in agent_dockerfile
+    assert "--mount=type=secret,id=ratify_scenario_authorities_gzip_b64" in agent_dockerfile
+    assert "gzip --decompress" in agent_dockerfile
     assert "RATIFY_DELEGATION_SHA256" in agent_dockerfile
+    assert "RATIFY_SCENARIO_AUTHORITIES_SHA256" in agent_dockerfile
     assert "RATIFY_DELEGATION_PATH=/app/deployment/delegation.json" in agent_dockerfile
 
 

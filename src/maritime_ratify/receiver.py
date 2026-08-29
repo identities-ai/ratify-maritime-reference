@@ -263,6 +263,7 @@ class WorkOrderReceiver:
         return {
             "decision": "ALLOW",
             "reason": "ALLOW",
+            "handler_invoked": True,
             "handler_invocations": self._handler_invocations,
             "work_order_id": f"demo-{action.request_id}",
         }
@@ -278,6 +279,7 @@ class WorkOrderReceiver:
         return {
             "decision": "DENY",
             "reason": reason,
+            "handler_invoked": False,
             "handler_invocations": self._handler_invocations,
         }
 

@@ -7,6 +7,7 @@ from collections import deque
 import hmac
 import json
 import os
+from pathlib import Path
 import threading
 import time
 import uuid
@@ -46,7 +47,16 @@ from .profile import (
 )
 from .transport import CallerAuthenticator, CarrierDenied
 
-_SCENARIO_AMOUNTS = {"allow": 42_000, "over_limit": 50_100}
+_SCENARIOS = {
+    "allow",
+    "over_limit",
+    "wrong_resource",
+    "altered_operation",
+    "expired",
+    "revoked",
+    "replay",
+    "wrong_agent",
+}
 _CHAT_RATE_LIMIT = 30
 _CHAT_RATE_WINDOW_SECONDS = 60
 _DEMO_TOKEN_HEADER = b"x-ratify-demo-token"
@@ -55,6 +65,7 @@ _DEMO_TOKEN_HEADER = b"x-ratify-demo-token"
 @dataclass(frozen=True)
 class AgentSettings:
     authority: AuthorityFixture = field(repr=False)
+    scenario_authorities: dict[str, AuthorityFixture] = field(repr=False)
     receiver_mcp_url: str
     presentation_url: str
     receiver_token: str = field(repr=False)
@@ -93,14 +104,11 @@ class AgentSettings:
         demo_token = _required("RATIFY_DEMO_TOKEN")
         if hmac.compare_digest(receiver_token, demo_token):
             raise RuntimeError("RATIFY_DEMO_TOKEN must differ from RATIFY_RECEIVER_TOKEN")
+        authority = _authority_fixture(delegation, private_key)
+        scenario_authorities = _scenario_authorities(authority)
         return cls(
-            authority=AuthorityFixture(
-                delegation.issuer_id,
-                delegation.issuer_pub_key,
-                delegation.subject_id,
-                private_key,
-                delegation,
-            ),
+            authority=authority,
+            scenario_authorities=scenario_authorities,
             receiver_mcp_url=_required("RATIFY_RECEIVER_MCP_URL"),
             presentation_url=_required("RATIFY_PRESENTATION_URL"),
             receiver_token=receiver_token,
@@ -184,7 +192,7 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
             scenario = payload.get("message")
             if type(scenario) is not str:
                 raise ValueError
-            if scenario not in _SCENARIO_AMOUNTS:
+            if scenario not in _SCENARIOS:
                 return JSONResponse(
                     {"response": "Unsupported demo scenario."}, status_code=400
                 )
@@ -207,6 +215,9 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
 
 async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]:
     arguments = _scenario_arguments(scenario)
+    scenario_authority = settings.scenario_authorities.get(
+        scenario, settings.authority
+    )
     model = _model(settings, arguments)
     headers = {"X-Ratify-Caller-Token": f"Bearer {settings.receiver_token}"}
     connections = {
@@ -222,12 +233,14 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
             model=model,
             connections=connections,
             interceptor=AuthorityInterceptor(
-                authority=settings.authority,
+                authority=scenario_authority,
                 clock=lambda: int(time.time()),
                 challenge_provider=challenge_provider,
                 presentation_uploader=HTTPPresentationUploader(
                     http, settings.presentation_url
                 ),
+                dispatch_transform=_dispatch_transform(scenario),
+                replay_dispatch=scenario == "replay",
             ),
         )
         challenge_provider.bind_client(client)
@@ -241,13 +254,17 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
     maximum, authorized_currency = _delegation_amount_limit(
         settings.authority.delegation
     )
+    dispatched = _dispatched_arguments(scenario, arguments)
     return {
         **decision,
-        "requested_amount_minor": arguments["amount_minor"],
-        "currency": arguments["currency"],
+        "requested_amount_minor": dispatched["amount_minor"],
+        "requested_resource": dispatched["resource"],
+        "requested_category": dispatched["category"],
+        "requested_description": dispatched["description"],
+        "currency": dispatched["currency"],
         "authorized_max_amount_minor": maximum,
         "authorized_currency": authorized_currency,
-        **_delegation_public_facts(settings.authority.delegation),
+        **_delegation_public_facts(scenario_authority.delegation),
     }
 
 
@@ -309,14 +326,93 @@ def _model(settings: AgentSettings, arguments: dict[str, Any]):
 
 
 def _scenario_arguments(scenario: str) -> dict[str, Any]:
-    return {
+    arguments = {
         "request_id": f"demo-{uuid.uuid4().hex}",
         "resource": DEFAULT_RESOURCE,
         "category": DEFAULT_CATEGORY,
-        "amount_minor": _SCENARIO_AMOUNTS[scenario],
+        "amount_minor": 42_000,
         "currency": DEFAULT_CURRENCY,
         "description": "Inspect and repair loading-bay lighting",
     }
+    if scenario == "over_limit":
+        arguments["amount_minor"] = 50_100
+    elif scenario == "wrong_resource":
+        arguments["resource"] = "site:warehouse-portland-01"
+    return arguments
+
+
+def _dispatch_transform(
+    scenario: str,
+) -> Any:
+    if scenario != "altered_operation":
+        return None
+
+    def alter(arguments: dict[str, Any]) -> dict[str, Any]:
+        arguments["description"] = "Replace loading-bay electrical panel"
+        return arguments
+
+    return alter
+
+
+def _dispatched_arguments(
+    scenario: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    transform = _dispatch_transform(scenario)
+    return transform(dict(arguments)) if transform is not None else dict(arguments)
+
+
+def _authority_fixture(delegation, private_key: HybridPrivateKey) -> AuthorityFixture:
+    probe = b"ratify-maritime-agent-key-check"
+    if verify_both(probe, sign_both(probe, private_key), delegation.subject_pub_key):
+        raise RuntimeError("agent private key does not match deployment delegation")
+    return AuthorityFixture(
+        delegation.issuer_id,
+        delegation.issuer_pub_key,
+        delegation.subject_id,
+        private_key,
+        delegation,
+    )
+
+
+def _scenario_authorities(
+    primary: AuthorityFixture,
+) -> dict[str, AuthorityFixture]:
+    path = os.environ.get("RATIFY_SCENARIO_AUTHORITIES_PATH")
+    if not path:
+        return {}
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        if type(payload) is not dict or set(payload) != {
+            "expired", "revoked", "wrong_agent",
+            "wrong_agent_fixture_private_key",
+        }:
+            raise ValueError
+        expired = decode_delegation_cert(payload["expired"])
+        revoked = decode_delegation_cert(payload["revoked"])
+        wrong_agent = decode_delegation_cert(payload["wrong_agent"])
+        fixture_private = payload["wrong_agent_fixture_private_key"]
+        if type(fixture_private) is not dict or set(fixture_private) != {
+            "ed25519", "ml_dsa_65"
+        }:
+            raise ValueError
+        wrong_private = HybridPrivateKey(
+            ed25519=_decode_fixture_key(fixture_private["ed25519"], 32),
+            ml_dsa_65=_decode_fixture_key(fixture_private["ml_dsa_65"], 4032),
+        )
+        authorities = {
+            "expired": _authority_fixture(expired, primary.agent_private_key),
+            "revoked": _authority_fixture(revoked, primary.agent_private_key),
+            "wrong_agent": _authority_fixture(wrong_agent, wrong_private),
+        }
+        if any(
+            authority.root_id != primary.root_id
+            or authority.root_public_key != primary.root_public_key
+            for authority in authorities.values()
+        ):
+            raise ValueError
+        return authorities
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        raise RuntimeError("invalid deployment scenario authorities") from None
 
 
 def _tool_decision(messages: list[BaseMessage]) -> dict[str, Any]:
@@ -361,3 +457,12 @@ def _private_key(name: str, expected_bytes: int) -> bytes:
     if len(value) != expected_bytes:
         raise RuntimeError(f"invalid private key setting: {name}")
     return value
+
+
+def _decode_fixture_key(value: object, expected_bytes: int) -> bytes:
+    if not isinstance(value, str):
+        raise ValueError
+    decoded = base64.b64decode(value, validate=True)
+    if len(decoded) != expected_bytes:
+        raise ValueError
+    return decoded
