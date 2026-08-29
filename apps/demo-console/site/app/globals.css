@@ -31,6 +31,7 @@ h1 em { color:var(--blue); font-style:normal; }
 .lab-head h2,.explainer h2 { font-size:34px; letter-spacing:-.04em; margin:0; }
 .lab-head p:last-child { color:var(--muted); font-size:14px; }
 .run-all { border:0;border-radius:999px;background:var(--blue);color:#fff;padding:13px 19px;font-weight:650;cursor:pointer;white-space:nowrap }.run-all:disabled{cursor:wait;opacity:.65}
+.harness-note { max-width:760px; margin:0 0 20px; color:var(--muted); font-size:13px; line-height:1.6; }
 .scenario-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .scenario-grid button { text-align:left; padding:28px; border:1px solid var(--line); border-radius:15px; background:#fbfcfe; cursor:pointer; display:flex; flex-direction:column; gap:12px; transition:.2s ease; }
 .scenario-grid button:hover { border-color:var(--blue); transform:translateY(-2px); box-shadow:0 12px 30px rgba(23,92,245,.1); }

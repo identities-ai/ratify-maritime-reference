@@ -152,6 +152,8 @@ async def _exercise_dependency_failure():
     assert result == {
         "decision": "DENY",
         "reason": "DENY_VERIFIER_UNAVAILABLE",
+        "decided_by": "receiver_error",
+        "verification_status": None,
         "handler_invoked": False,
         "handler_invocations": 0,
     }
