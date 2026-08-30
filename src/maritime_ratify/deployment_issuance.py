@@ -94,14 +94,19 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
         agent_private, receiver_token, demo_token
     ))
     _write_private_env(output / "agent-b.env", _agent_environment(
-        second_private, second_receiver_token, second_demo_token
+        second_private,
+        second_receiver_token,
+        second_demo_token,
+        delegation_name="delegation-b.json",
+        authorities_name="scenario-authorities-b.json",
     ))
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
     _write_private(output / "delegation-b.json", second_wire)
     _write_private(output / "scenario-authorities-b.json", peer_wire)
     _write_manifest(
-        output / "manifest.json", delegations, wire, scenario_wire
+        output / "manifest.json", delegations, wire, scenario_wire,
+        second_wire, peer_wire,
     )
 
 
@@ -154,9 +159,11 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
     _write_private(output / "delegation-b.json", encode_delegation_cert(
         delegations["second"]
     ))
-    _write_private(output / "scenario-authorities-b.json", _peer_authorities_wire(wire))
+    peer_wire = _peer_authorities_wire(wire)
+    _write_private(output / "scenario-authorities-b.json", peer_wire)
     _write_manifest(
-        output / "manifest.json", delegations, wire, scenario_wire
+        output / "manifest.json", delegations, wire, scenario_wire,
+        encode_delegation_cert(delegations["second"]), peer_wire,
     )
 
 
@@ -248,12 +255,22 @@ def _receiver_environment(
 
 
 def _agent_environment(
-    private_key: HybridPrivateKey, receiver_token: str, demo_token: str
+    private_key: HybridPrivateKey,
+    receiver_token: str,
+    demo_token: str,
+    *,
+    delegation_name: str = "delegation.json",
+    authorities_name: str = "scenario-authorities.json",
 ) -> dict[str, str]:
-    """Both runtimes share one image and differ only by injected authority."""
+    """Both runtimes share one image and differ only by injected authority.
+
+    The image carries every tenant's public certificate, because Maritime's
+    runtime configuration cannot carry a hybrid certificate of this size. Each
+    runtime is pointed at its own files and receives only its own private key.
+    """
     return {
-        "RATIFY_DELEGATION_PATH": "/app/deployment/delegation.json",
-        "RATIFY_SCENARIO_AUTHORITIES_PATH": "/app/deployment/scenario-authorities.json",
+        "RATIFY_DELEGATION_PATH": f"/app/deployment/{delegation_name}",
+        "RATIFY_SCENARIO_AUTHORITIES_PATH": f"/app/deployment/{authorities_name}",
         "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(private_key.ed25519),
         "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(private_key.ml_dsa_65),
         "RATIFY_RECEIVER_TOKEN": receiver_token,
@@ -312,6 +329,8 @@ def _write_manifest(
     delegations: dict[str, object],
     wire: str,
     scenario_wire: str,
+    second_wire: str,
+    peer_wire: str,
 ) -> None:
     delegation = delegations["active"]
     path.write_text(json.dumps({
@@ -324,6 +343,10 @@ def _write_manifest(
         "scenario_authorities_sha256": hashlib.sha256(
             scenario_wire.encode()
         ).hexdigest(),
+        "second_agent_id": delegations["second"].subject_id,
+        "second_cert_id": delegations["second"].cert_id,
+        "second_delegation_sha256": hashlib.sha256(second_wire.encode()).hexdigest(),
+        "peer_authorities_sha256": hashlib.sha256(peer_wire.encode()).hexdigest(),
         "revoked_cert_id": delegations["revoked"].cert_id,
         "wrong_agent_id": delegations["wrong_agent"].subject_id,
         "expires_at": delegation.expires_at,
