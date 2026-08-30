@@ -104,8 +104,15 @@ live deployment is never contacted, and the deployment's own delegation is
 replaced by the principal issued on the reader's machine seconds earlier.
 
 Pass `--agent-image` and `--receiver-image` to reproduce a different published
-pair. If the Docker engine does not share the default workspace directory, pass
-`--workspace-root` with a path it does share.
+pair.
+
+Two environment notes. The script probes the home directory, the system
+temporary directory, and the working directory, and uses the first one the
+Docker engine actually shares with the host; engines differ, and colima shares
+only the home directory by default. Pass `--workspace-root` to choose
+explicitly. The published images are `linux/amd64`, so on an arm64 host both
+containers run under emulation and every scenario takes longer while remaining
+correct.
 
 `docs/gate-expectations.json` is the single contract. The live gate, this local
 reproduction, and the in-repository full-gate test all read it, so the required
