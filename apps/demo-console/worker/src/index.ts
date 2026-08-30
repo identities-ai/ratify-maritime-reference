@@ -8,6 +8,10 @@ const SCENARIOS = new Set([
   "replay",
   "wrong_agent",
   "copied_certificate",
+  "isolation_own",
+  "isolation_wrong_site",
+  "isolation_borrowed_subject",
+  "isolation_borrowed_certificate",
 ]);
 const SCENARIO_PATTERN = [
   "allow",
@@ -19,6 +23,10 @@ const SCENARIO_PATTERN = [
   "replay",
   "wrong_agent",
   "copied_certificate",
+  "isolation_own",
+  "isolation_wrong_site",
+  "isolation_borrowed_subject",
+  "isolation_borrowed_certificate",
 ].join("|");
 const WINDOW_MS = 60_000;
 const PER_CLIENT_LIMIT = 10;
@@ -38,10 +46,16 @@ interface LimiterStub {
   fetch(request: Request): Promise<Response>;
 }
 
+// Scenarios beginning with this prefix execute on the second runtime, which
+// carries its own delegation and its own transport credential.
+const SECOND_RUNTIME_PREFIX = "isolation_";
+
 interface Env {
   AGENT_URL: string;
+  AGENT_B_URL: string;
   CONSOLE_ORIGIN: string;
   RATIFY_DEMO_TOKEN: string;
+  RATIFY_DEMO_TOKEN_B: string;
   SCENARIO_LIMITER: {
     idFromName(name: string): unknown;
     get(id: unknown): LimiterStub;
@@ -161,9 +175,12 @@ export async function handleRequest(
     return reply({ error: "INVALID_REQUEST" }, 400, env.CONSOLE_ORIGIN);
   }
 
+  const secondRuntime = scenario.startsWith(SECOND_RUNTIME_PREFIX);
+  const agentUrl = secondRuntime ? env.AGENT_B_URL : env.AGENT_URL;
+  const demoToken = secondRuntime ? env.RATIFY_DEMO_TOKEN_B : env.RATIFY_DEMO_TOKEN;
   if (
-    typeof env.RATIFY_DEMO_TOKEN !== "string" ||
-    env.RATIFY_DEMO_TOKEN.length === 0
+    typeof demoToken !== "string" || demoToken.length === 0 ||
+    typeof agentUrl !== "string" || agentUrl.length === 0
   ) {
     return reply({ error: "SCENARIO_UNAVAILABLE" }, 503, env.CONSOLE_ORIGIN);
   }
@@ -186,11 +203,11 @@ export async function handleRequest(
   }
 
   try {
-    const agent = await fetchAgent(`${env.AGENT_URL}/chat`, {
+    const agent = await fetchAgent(`${agentUrl}/chat`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Ratify-Demo-Token": `Bearer ${env.RATIFY_DEMO_TOKEN}`,
+        "X-Ratify-Demo-Token": `Bearer ${demoToken}`,
       },
       body: JSON.stringify({ message: scenario }),
       signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
