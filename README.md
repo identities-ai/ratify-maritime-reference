@@ -45,6 +45,19 @@ expired, revoked, replayed, wrong-agent, and copied-certificate denials. See
 [`docs/ADVERSARIAL-RESULTS.md`](docs/ADVERSARIAL-RESULTS.md) for the live result
 contract and inspectable artifact procedure.
 
+To reproduce the same nine results from the published images, without a
+repository install, a Ratify credential, or any call to the live deployment:
+
+```bash
+python3 scripts/reproduce_gate_locally.py
+```
+
+It needs only Docker and Python 3.10 or newer. It issues a fresh principal
+inside the published agent image, runs both published digests on a private
+Docker network, and checks every result against
+[`docs/gate-expectations.json`](docs/gate-expectations.json), the single
+contract that the live gate and the full-gate test also read.
+
 ## Maritime agent runtime
 
 The root `Dockerfile` is the Maritime GitHub-source build for the agent. It
