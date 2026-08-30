@@ -20,7 +20,8 @@ type Scenario =
   | "expired"
   | "revoked"
   | "replay"
-  | "wrong_agent";
+  | "wrong_agent"
+  | "copied_certificate";
 
 const scenarios: {
   id: Scenario;
@@ -38,6 +39,7 @@ const scenarios: {
   { id: "revoked", tag: "REVOKED", title: "Revoked signed delegation", detail: "The credential is authentic and current, but the receiver has revoked it.", expectedDecision: "DENY", expectedReason: "DENY_REVOKED" },
   { id: "replay", tag: "REPLAY", title: "Consumed proof reference reused", detail: "One valid use is followed by a second attempt with the same one-time proof.", expectedDecision: "DENY", expectedReason: "DENY_REPLAY" },
   { id: "wrong_agent", tag: "WRONG AGENT", title: "Different valid agent credential", detail: "Another agent presents authority to a challenge issued for this agent.", expectedDecision: "DENY", expectedReason: "DENY_SUBJECT_MISMATCH" },
+  { id: "copied_certificate", tag: "COPIED CERTIFICATE", title: "Genuine certificate, wrong holder", detail: "The signed delegation is authentic and names this agent, but the presenter does not hold its private key.", expectedDecision: "DENY", expectedReason: "DENY_VERIFICATION_FAILED" },
 ];
 type Result = {
   correlation_id: string;
@@ -171,7 +173,7 @@ export default function Home() {
       <section className="hero">
         <p className="eyebrow">MARITIME × RATIFY</p>
         <h1>An agent can ask.<br /><em>Authority decides.</em></h1>
-        <p className="lede">Run one permitted work order and seven adversarial requests against the same Maritime-hosted authorization boundary. Every denial must stop before protected code runs.</p>
+        <p className="lede">Run one permitted work order and eight adversarial requests against the same Maritime-hosted authorization boundary. Every denial must stop before protected code runs.</p>
         <div className="hero-links" aria-label="Learn about the technologies in this pilot">
           <a href="https://maritime.sh/" target="_blank" rel="noreferrer">About Maritime ↗</a>
           <a href="https://ratifyprotocol.com/" target="_blank" rel="noreferrer">About Ratify Protocol ↗</a>
@@ -197,9 +199,9 @@ export default function Home() {
         </div>
 
         <div className="lab-head">
-          <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus seven adversarial denials</h2></div>
+          <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus eight adversarial denials</h2></div>
           <button className="run-all" onClick={runAll} disabled={pending !== null || runningSuite}>
-            {runningSuite ? `Running ${Object.keys(results).length + 1} of 8…` : "Run full adversarial gate →"}
+            {runningSuite ? `Running ${Object.keys(results).length + 1} of 9…` : "Run full adversarial gate →"}
           </button>
         </div>
         <p className="harness-note">Every scenario dispatches a fixed, enumerated action. This public demo runs a deterministic tool-call harness in place of a reasoning model, because the model is not the security decision. The receiver reaches its decision without trusting the prompt, the model, or the agent&rsquo;s transport credential.</p>

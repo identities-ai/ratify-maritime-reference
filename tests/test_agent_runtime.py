@@ -196,6 +196,10 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
         "wrong_agent": (
             "DENY", "DENY_SUBJECT_MISMATCH", False, "receiver_precheck", None,
         ),
+        "copied_certificate": (
+            "DENY", "DENY_VERIFICATION_FAILED", False,
+            "ratify_verification", "invalid",
+        ),
     }
     try:
         for scenario, outcome in expected.items():

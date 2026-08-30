@@ -113,6 +113,7 @@ describe("scenario proxy", () => {
     ["revoked", "DENY", "DENY_REVOKED", "ratify_verification", "revoked"],
     ["replay", "DENY", "DENY_REPLAY", "proof_carrier", null],
     ["wrong_agent", "DENY", "DENY_SUBJECT_MISMATCH", "receiver_precheck", null],
+    ["copied_certificate", "DENY", "DENY_VERIFICATION_FAILED", "ratify_verification", "invalid"],
   ])("constructs and projects %s", async (scenario, decision, reason, decidedBy, verificationStatus) => {
     const { env } = environment();
     const fetchAgent = agent(200, {

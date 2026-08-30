@@ -47,6 +47,7 @@ not substitutes for receiver-side authorization.
 | Change action after challenge | Deny before handler |
 | Replay or race one challenge | At most one handler invocation |
 | Present as another agent or issuer | Deny before handler |
+| Present a genuine certificate without its subject key | Deny before handler |
 | Expired or revoked delegation | Deny before handler |
 | Remove verifier state | Fail closed |
 | Malformed, duplicate, or oversized proof input | Reject before dispatch |
@@ -71,7 +72,7 @@ after 60 seconds, and consumes it once. The model-visible tool schema contains
 business arguments only.
 
 The Stage 4 agent container exposes a side-effect-free health route and an
-authenticated `/chat` route limited to the eight enumerated full-gate
+authenticated `/chat` route limited to the nine enumerated full-gate
 scenarios. Its demo bearer credential controls endpoint access only. The agent
 still constructs a Ratify presentation for every selected action, and the
 receiver independently verifies that authority before its handler runs. The
@@ -83,7 +84,7 @@ private keys, proofs, or receiver policy.
 
 The receiver and agent are deployed on Maritime from immutable public GHCR
 digests. The prior deployment verified the live two-runtime allow and
-over-limit paths; the refreshed deployment must record all eight full-gate
+over-limit paths; the refreshed deployment must record all nine full-gate
 results before closure.
 There is still no durable shared state, ingress body limit, distributed rate
 limiting, or production handler.

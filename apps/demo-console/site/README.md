@@ -1,7 +1,7 @@
 # Maritime × Ratify live authorization lab
 
 This standalone public console executes the Maritime pilot's one-allow plus
-seven-denial adversarial gate. Each row is populated only after the scenario
+eight-denial adversarial gate. Each row is populated only after the scenario
 proxy returns a live, redacted result from the separately deployed Maritime
 agent and receiver.
 

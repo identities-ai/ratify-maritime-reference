@@ -22,7 +22,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /An agent can ask/);
   assert.match(html, /\$420 Seattle electrical repair/);
   assert.match(html, /\$501 Seattle electrical repair/);
-  assert.match(html, /Allow plus seven adversarial denials/);
+  assert.match(html, /Allow plus eight adversarial denials/);
   assert.match(html, /Run full adversarial gate/);
   assert.match(html, /WRONG RESOURCE/);
   assert.match(html, /ALTERED OPERATION/);
@@ -30,6 +30,8 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /REVOKED/);
   assert.match(html, /REPLAY/);
   assert.match(html, /WRONG AGENT/);
+  assert.match(html, /COPIED CERTIFICATE/);
+  assert.match(html, /deterministic tool-call harness/);
   assert.match(html, /What authority does this agent carry/);
   assert.match(html, /custom:work_order:create/);
   assert.match(html, /Seattle warehouse 01/);

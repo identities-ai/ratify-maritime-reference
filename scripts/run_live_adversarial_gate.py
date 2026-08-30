@@ -37,6 +37,10 @@ EXPECTED = {
     "wrong_agent": (
         "DENY", "DENY_SUBJECT_MISMATCH", False, "receiver_precheck", None,
     ),
+    "copied_certificate": (
+        "DENY", "DENY_VERIFICATION_FAILED", False,
+        "ratify_verification", "invalid",
+    ),
 }
 
 DISCLOSURES = {
@@ -207,7 +211,7 @@ def main() -> int:
             "worker_version": args.worker_version,
             **identity,
         },
-        "claim": "one allow plus seven distinct receiver denials",
+        "claim": "one allow plus eight distinct receiver denials",
         "disclosures": DISCLOSURES,
         "passed": not failures and len(results) == len(EXPECTED),
         "results": results,
