@@ -56,6 +56,7 @@ _SCENARIOS = {
     "revoked",
     "replay",
     "wrong_agent",
+    "copied_certificate",
 }
 _CHAT_RATE_LIMIT = 30
 _CHAT_RATE_WINDOW_SECONDS = 60
@@ -403,6 +404,19 @@ def _scenario_authorities(
             "expired": _authority_fixture(expired, primary.agent_private_key),
             "revoked": _authority_fixture(revoked, primary.agent_private_key),
             "wrong_agent": _authority_fixture(wrong_agent, wrong_private),
+            # The genuine public delegation presented by a holder who does not
+            # own its subject key. The bundle names the authorized agent, so
+            # the receiver's subject precheck passes and Ratify verification is
+            # the layer that has to reject it. Constructed directly because
+            # _authority_fixture requires the key to match the certificate,
+            # which is exactly what this case violates.
+            "copied_certificate": AuthorityFixture(
+                primary.root_id,
+                primary.root_public_key,
+                primary.agent_id,
+                wrong_private,
+                primary.delegation,
+            ),
         }
         if any(
             authority.root_id != primary.root_id

@@ -7,6 +7,7 @@ const SCENARIOS = new Set([
   "revoked",
   "replay",
   "wrong_agent",
+  "copied_certificate",
 ]);
 const SCENARIO_PATTERN = [
   "allow",
@@ -17,6 +18,7 @@ const SCENARIO_PATTERN = [
   "revoked",
   "replay",
   "wrong_agent",
+  "copied_certificate",
 ].join("|");
 const WINDOW_MS = 60_000;
 const PER_CLIENT_LIMIT = 10;
