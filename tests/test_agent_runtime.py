@@ -1,5 +1,6 @@
 import base64
 import asyncio
+import json
 import socket
 import threading
 import time
@@ -176,30 +177,21 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
     )
     # The deciding layer is part of the claim. A denial that never reaches
     # Ratify verification proves the receiver's own binding, not the protocol,
-    # and the gate must record which one actually decided.
+    # so the required layer is pinned in the shared contract that the live gate
+    # and the local reproduction also read.
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs" / "gate-expectations.json")
+        .read_text(encoding="utf-8")
+    )["scenarios"]
     expected = {
-        "allow": ("ALLOW", "ALLOW", True, "ratify_verification", "authorized_agent"),
-        "over_limit": (
-            "DENY", "DENY_LIMIT_EXCEEDED", False,
-            "ratify_verification", "constraint_denied",
-        ),
-        "wrong_resource": (
-            "DENY", "DENY_RESOURCE_MISMATCH", False,
-            "ratify_verification", "constraint_denied",
-        ),
-        "altered_operation": (
-            "DENY", "DENY_OPERATION_MISMATCH", False, "proof_carrier", None,
-        ),
-        "expired": ("DENY", "DENY_EXPIRED", False, "ratify_verification", "expired"),
-        "revoked": ("DENY", "DENY_REVOKED", False, "ratify_verification", "revoked"),
-        "replay": ("DENY", "DENY_REPLAY", False, "proof_carrier", None),
-        "wrong_agent": (
-            "DENY", "DENY_SUBJECT_MISMATCH", False, "receiver_precheck", None,
-        ),
-        "copied_certificate": (
-            "DENY", "DENY_VERIFICATION_FAILED", False,
-            "ratify_verification", "invalid",
-        ),
+        name: (
+            required["decision"],
+            required["reason"],
+            required["handler_invoked"],
+            required["decided_by"],
+            required["verification_status"],
+        )
+        for name, required in contract.items()
     }
     try:
         for scenario, outcome in expected.items():

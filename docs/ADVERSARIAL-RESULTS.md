@@ -85,6 +85,32 @@ uv run --python 3.12 python -c 'import hashlib,json,pathlib; p=json.loads(pathli
 
 The two printed values must match.
 
+## Reproduce it without trusting us
+
+The artifact is a record of what the deployment did. It is not the check a
+skeptical reader should rely on, because every field in it is reported by
+infrastructure Ratify operates. The check is this one, which needs only Docker
+and Python 3.10 or newer:
+
+```bash
+python3 scripts/reproduce_gate_locally.py
+```
+
+It resolves both published image digests against the public registry, issues a
+fresh principal inside the published agent image, runs both images on a private
+Docker network, executes every enumerated scenario, and compares each result
+against `docs/gate-expectations.json`. No Ratify credential is involved, the
+live deployment is never contacted, and the deployment's own delegation is
+replaced by the principal issued on the reader's machine seconds earlier.
+
+Pass `--agent-image` and `--receiver-image` to reproduce a different published
+pair. If the Docker engine does not share the default workspace directory, pass
+`--workspace-root` with a path it does share.
+
+`docs/gate-expectations.json` is the single contract. The live gate, this local
+reproduction, and the in-repository full-gate test all read it, so the required
+result and its deciding layer cannot drift between them.
+
 ## What the artifact does not establish
 
 The recorded `disclosures` object states these limits in the artifact itself.

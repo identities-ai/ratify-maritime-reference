@@ -14,34 +14,30 @@ from pathlib import Path
 import httpx
 
 
-# Decision, reason, handler entry, deciding layer, and Ratify verification
-# status. The deciding layer is part of the claim: a denial that never reaches
-# Ratify verification demonstrates the receiver's own binding rather than the
-# protocol, and the gate fails if a scenario changes which layer decided it.
-EXPECTED = {
-    "allow": ("ALLOW", "ALLOW", True, "ratify_verification", "authorized_agent"),
-    "over_limit": (
-        "DENY", "DENY_LIMIT_EXCEEDED", False,
-        "ratify_verification", "constraint_denied",
-    ),
-    "wrong_resource": (
-        "DENY", "DENY_RESOURCE_MISMATCH", False,
-        "ratify_verification", "constraint_denied",
-    ),
-    "altered_operation": (
-        "DENY", "DENY_OPERATION_MISMATCH", False, "proof_carrier", None,
-    ),
-    "expired": ("DENY", "DENY_EXPIRED", False, "ratify_verification", "expired"),
-    "revoked": ("DENY", "DENY_REVOKED", False, "ratify_verification", "revoked"),
-    "replay": ("DENY", "DENY_REPLAY", False, "proof_carrier", None),
-    "wrong_agent": (
-        "DENY", "DENY_SUBJECT_MISMATCH", False, "receiver_precheck", None,
-    ),
-    "copied_certificate": (
-        "DENY", "DENY_VERIFICATION_FAILED", False,
-        "ratify_verification", "invalid",
-    ),
-}
+# The required result for every scenario, including the layer that must decide
+# it, is the shared contract in docs/gate-expectations.json. The deciding layer
+# is part of the claim: a denial that never reaches Ratify verification
+# demonstrates the receiver's own binding rather than the protocol, and the gate
+# fails if a scenario changes which layer decided it.
+REPOSITORY = Path(__file__).resolve().parents[1]
+EXPECTATIONS = REPOSITORY / "docs" / "gate-expectations.json"
+
+
+def _expected() -> dict[str, tuple[object, ...]]:
+    scenarios = json.loads(EXPECTATIONS.read_text(encoding="utf-8"))["scenarios"]
+    return {
+        name: (
+            required["decision"],
+            required["reason"],
+            required["handler_invoked"],
+            required["decided_by"],
+            required["verification_status"],
+        )
+        for name, required in scenarios.items()
+    }
+
+
+EXPECTED = _expected()
 
 DISCLOSURES = {
     "deployment_identity": (
