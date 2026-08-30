@@ -1,0 +1,51 @@
+{
+  "schema": "ratify-maritime-runtime-isolation-expectations/v1",
+  "description": "The required result for every cross-runtime attempt, including the layer that must decide it. The local two-runtime test and the deployed isolation gate both read this file.",
+  "attempts": {
+    "primary_own_authority": {
+      "runtime": "primary",
+      "scenario": "allow",
+      "decision": "ALLOW",
+      "reason": "ALLOW",
+      "handler_invoked": true,
+      "decided_by": "ratify_verification",
+      "verification_status": "authorized_agent"
+    },
+    "secondary_own_authority": {
+      "runtime": "secondary",
+      "scenario": "isolation_own",
+      "decision": "ALLOW",
+      "reason": "ALLOW",
+      "handler_invoked": true,
+      "decided_by": "ratify_verification",
+      "verification_status": "authorized_agent"
+    },
+    "secondary_other_site": {
+      "runtime": "secondary",
+      "scenario": "isolation_wrong_site",
+      "decision": "DENY",
+      "reason": "DENY_RESOURCE_MISMATCH",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "constraint_denied"
+    },
+    "secondary_borrowed_subject": {
+      "runtime": "secondary",
+      "scenario": "isolation_borrowed_subject",
+      "decision": "DENY",
+      "reason": "DENY_SUBJECT_MISMATCH",
+      "handler_invoked": false,
+      "decided_by": "receiver_precheck",
+      "verification_status": null
+    },
+    "secondary_borrowed_certificate": {
+      "runtime": "secondary",
+      "scenario": "isolation_borrowed_certificate",
+      "decision": "DENY",
+      "reason": "DENY_VERIFICATION_FAILED",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "invalid"
+    }
+  }
+}
