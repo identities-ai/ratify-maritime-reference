@@ -113,16 +113,27 @@ def main() -> int:
             )
         print(f"first sample {cold_ms:8.0f} ms  {cold_body['reason']}")
         warm = []
+        failures = 0
         for index in range(arguments.warm_samples):
             time.sleep(arguments.interval)
-            elapsed, body = _sample(
-                arguments.endpoint, arguments.origin, arguments.scenario
-            )
+            try:
+                elapsed, body = _sample(
+                    arguments.endpoint, arguments.origin, arguments.scenario
+                )
+            except urllib.error.HTTPError as error:
+                # A failed sample is a property of the deployment worth
+                # recording, not a reason to abandon the measurement.
+                failures += 1
+                print(f"  warm {index + 1:>2}    failed  HTTP {error.code}")
+                continue
             if body.get("decision") != cold_body.get("decision"):
                 print("decision changed during measurement", file=sys.stderr)
                 return 1
             warm.append(elapsed)
             print(f"  warm {index + 1:>2} {elapsed:8.0f} ms")
+        if not warm:
+            print("every warm sample failed", file=sys.stderr)
+            return 1
     except (urllib.error.URLError, TimeoutError, OSError, KeyError) as error:
         print(f"measurement failed: {error}", file=sys.stderr)
         return 2
@@ -140,7 +151,9 @@ def main() -> int:
         "first_scenario_attempt_failed": first_attempt_failed,
         "first_sample_ms": round(cold_ms),
         "first_sample_was_cold_start": arguments.runtimes_were_sleeping,
-        "warm_samples": len(warm),
+        "warm_samples_attempted": arguments.warm_samples,
+        "warm_samples_succeeded": len(warm),
+        "warm_samples_failed": failures,
         "warm_min_ms": round(min(warm)),
         "warm_median_ms": round(statistics.median(warm)),
         "warm_max_ms": round(max(warm)),
@@ -156,6 +169,11 @@ def main() -> int:
                 "internet, so the numbers include network transit and are not "
                 "a controlled benchmark."
             ),
+            "reliability": (
+                "Failed samples are recorded rather than discarded. A non-zero "
+                "warm_samples_failed count means the public endpoint did not "
+                "return a decision within the proxy's budget for that attempt."
+            ),
             "cold_start": (
                 "The first sample includes waking both sleeping Maritime "
                 "runtimes when the recorded flag says they were asleep. "
@@ -170,7 +188,8 @@ def main() -> int:
         f"\nreadiness first {artifact['agent_readiness_first_ms']} ms · "
         f"first scenario {artifact['first_sample_ms']} ms · warm median "
         f"{artifact['warm_median_ms']} ms over {len(warm)} samples "
-        f"({artifact['warm_min_ms']}-{artifact['warm_max_ms']} ms)"
+        f"({artifact['warm_min_ms']}-{artifact['warm_max_ms']} ms) · "
+        f"{failures} failed"
     )
     return 0
 

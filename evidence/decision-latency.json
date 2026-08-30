@@ -1,0 +1,25 @@
+{
+  "schema": "ratify-maritime-decision-latency/v1",
+  "measured_at": "2026-08-30T04:18:45.880959+00:00",
+  "endpoint": "https://maritime-api.ratifyprotocol.com/api/scenario",
+  "scenario": "allow",
+  "decision": "ALLOW",
+  "decided_by": "ratify_verification",
+  "agent_readiness_first_ms": 613,
+  "agent_readiness_warm_median_ms": 449,
+  "first_scenario_attempt_failed": false,
+  "first_sample_ms": 4799,
+  "first_sample_was_cold_start": false,
+  "warm_samples_attempted": 6,
+  "warm_samples_succeeded": 6,
+  "warm_samples_failed": 0,
+  "warm_min_ms": 4517,
+  "warm_median_ms": 4934,
+  "warm_max_ms": 20904,
+  "disclosures": {
+    "scope": "Every sample is a full public round trip through the proxy, the agent runtime, and the separately deployed receiver runtime. It is not an isolated measurement of cryptographic verification.",
+    "client": "Measured from a single client location over the public internet, so the numbers include network transit and are not a controlled benchmark.",
+    "reliability": "Failed samples are recorded rather than discarded. A non-zero warm_samples_failed count means the public endpoint did not return a decision within the proxy's budget for that attempt.",
+    "cold_start": "The first sample includes waking both sleeping Maritime runtimes when the recorded flag says they were asleep. Readiness is measured against the agent's side-effect-free health route, so it covers one runtime rather than both."
+  }
+}
