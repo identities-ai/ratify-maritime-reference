@@ -1,0 +1,69 @@
+{
+  "schema": "ratify-maritime-gate-expectations/v1",
+  "description": "The required result for every enumerated scenario, including the layer that must decide it. The live gate, the local reproduction, and the in-repository full-gate test all read this file so the contract cannot drift between them.",
+  "scenarios": {
+    "allow": {
+      "decision": "ALLOW",
+      "reason": "ALLOW",
+      "handler_invoked": true,
+      "decided_by": "ratify_verification",
+      "verification_status": "authorized_agent"
+    },
+    "over_limit": {
+      "decision": "DENY",
+      "reason": "DENY_LIMIT_EXCEEDED",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "constraint_denied"
+    },
+    "wrong_resource": {
+      "decision": "DENY",
+      "reason": "DENY_RESOURCE_MISMATCH",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "constraint_denied"
+    },
+    "altered_operation": {
+      "decision": "DENY",
+      "reason": "DENY_OPERATION_MISMATCH",
+      "handler_invoked": false,
+      "decided_by": "proof_carrier",
+      "verification_status": null
+    },
+    "expired": {
+      "decision": "DENY",
+      "reason": "DENY_EXPIRED",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "expired"
+    },
+    "revoked": {
+      "decision": "DENY",
+      "reason": "DENY_REVOKED",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "revoked"
+    },
+    "replay": {
+      "decision": "DENY",
+      "reason": "DENY_REPLAY",
+      "handler_invoked": false,
+      "decided_by": "proof_carrier",
+      "verification_status": null
+    },
+    "wrong_agent": {
+      "decision": "DENY",
+      "reason": "DENY_SUBJECT_MISMATCH",
+      "handler_invoked": false,
+      "decided_by": "receiver_precheck",
+      "verification_status": null
+    },
+    "copied_certificate": {
+      "decision": "DENY",
+      "reason": "DENY_VERIFICATION_FAILED",
+      "handler_invoked": false,
+      "decided_by": "ratify_verification",
+      "verification_status": "invalid"
+    }
+  }
+}
