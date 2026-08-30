@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform as host_platform
+import shutil
 import socket
 import subprocess
 import sys
@@ -97,6 +99,48 @@ def _observed_revision(image: str) -> str | None:
         return None
     revision = labels.get("org.opencontainers.image.revision")
     return revision if isinstance(revision, str) else None
+
+
+def _shares(root: Path, image: str, platform: str) -> bool:
+    """Check that the engine bind-mounts this directory back to the host.
+
+    Engines differ: Docker Desktop shares /tmp and /Users, colima shares only
+    the home directory by default. An unshared path is not an error, it is
+    worse, because the container writes into the engine's virtual machine and
+    the host sees an empty directory.
+    """
+    if not root.is_dir():
+        return False
+    try:
+        probe = Path(tempfile.mkdtemp(prefix=".ratify-probe-", dir=str(root)))
+    except OSError:
+        return False
+    try:
+        _run([
+            "docker", "run", "--rm", "--platform", platform, "--user", "0:0",
+            "-v", f"{probe}:/probe", image, "sh", "-c", "echo ok > /probe/shared",
+        ])
+        return (probe / "shared").is_file()
+    except subprocess.CalledProcessError:
+        return False
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+
+
+def _resolve_root(requested: Path | None, image: str, platform: str) -> Path:
+    candidates = [requested] if requested else [
+        Path.home(), Path(tempfile.gettempdir()), Path.cwd()
+    ]
+    for candidate in candidates:
+        if _shares(candidate, image, platform):
+            return candidate
+    tried = ", ".join(str(candidate) for candidate in candidates)
+    raise RuntimeError(
+        f"the Docker engine does not share any of: {tried}. Containers would "
+        "write into the engine's virtual machine instead of this host. Re-run "
+        "with --workspace-root pointing at a directory the engine shares, or "
+        "add one in the engine's file-sharing settings."
+    )
 
 
 def _issue(directory: Path, image: str, platform: str) -> Path:
@@ -201,12 +245,12 @@ def main() -> int:
     parser.add_argument(
         "--workspace-root",
         type=Path,
-        default=Path.home(),
+        default=None,
         help=(
             "Where to create the temporary issuance directory. It must be a "
-            "path the Docker engine shares with this machine, which is why the "
-            "default is the home directory rather than the system temporary "
-            "directory."
+            "path the Docker engine shares with this machine. When omitted, "
+            "the home directory, the system temporary directory, and the "
+            "working directory are probed in that order."
         ),
     )
     parser.add_argument(
@@ -220,6 +264,13 @@ def main() -> int:
 
     print(f"agent image    {arguments.agent_image}")
     print(f"receiver image {arguments.receiver_image}")
+    machine = host_platform.machine()
+    if arguments.platform.endswith("/amd64") and machine not in {"x86_64", "AMD64"}:
+        print(
+            f"note: the published images are {arguments.platform} and this host "
+            f"is {machine}, so both containers run under emulation. Every "
+            "scenario is correct but slower."
+        )
     if not arguments.skip_registry_check:
         for role, image in (
             ("agent", arguments.agent_image),
@@ -230,7 +281,14 @@ def main() -> int:
                 f"{role} digest records source revision "
                 f"{revision or 'unavailable, continuing'}"
             )
-    print()
+    try:
+        workspace_root = _resolve_root(
+            arguments.workspace_root, arguments.agent_image, arguments.platform
+        )
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"reproduction failed: {error}", file=sys.stderr)
+        return 2
+    print(f"workspace root {workspace_root}\n")
 
     suffix = uuid.uuid4().hex[:8]
     network = f"ratify-repro-{suffix}"
@@ -239,19 +297,12 @@ def main() -> int:
     port = _free_port()
 
     with tempfile.TemporaryDirectory(
-        prefix=".ratify-repro-", dir=str(arguments.workspace_root)
+        prefix=".ratify-repro-", dir=str(workspace_root)
     ) as workspace:
         directory = Path(workspace)
         try:
             print("issuing a fresh principal inside the published agent image")
             issuance = _issue(directory, arguments.agent_image, arguments.platform)
-            if not (issuance / "agent.env").is_file():
-                raise RuntimeError(
-                    f"issuance produced no files under {directory}. The Docker "
-                    "engine is not sharing that path, so the container wrote "
-                    "into its own virtual machine. Re-run with "
-                    "--workspace-root pointing at a shared directory."
-                )
             agent_environment = _read_env(issuance / "agent.env")
             _run(["docker", "network", "create", network])
             print("starting both published images on a private network")
