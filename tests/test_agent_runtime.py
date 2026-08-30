@@ -152,7 +152,7 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
             settings.receiver_token: "maritime-agent"
         }),
         presentations=PresentationRegistry(),
-        expected_agent_id=settings.authority.agent_id,
+        caller_subjects={"maritime-agent": settings.authority.agent_id},
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
     server = uvicorn.Server(uvicorn.Config(
@@ -221,7 +221,7 @@ async def _exercise_real_agent_boundary():
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-token": "maritime-agent"}),
         presentations=PresentationRegistry(),
-        expected_agent_id=authority.agent_id,
+        caller_subjects={"maritime-agent": authority.agent_id},
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
     server = uvicorn.Server(uvicorn.Config(

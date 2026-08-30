@@ -12,6 +12,7 @@ from maritime_ratify.deployment_issuance import (
     issue_deployment,
     renew_deployment,
 )
+from maritime_ratify.profile import SECOND_MAX_AMOUNT_MINOR, SECOND_RESOURCE
 
 
 def _env(path):
@@ -32,8 +33,9 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     scenarios = json.loads((output / "scenario-authorities.json").read_text())
 
     assert set(path.name for path in output.iterdir()) == {
-        "agent.env", "delegation.json", "manifest.json", "principal.json",
-        "receiver.env", "scenario-authorities.json"
+        "agent.env", "agent-b.env", "delegation.json", "delegation-b.json",
+        "manifest.json", "principal.json", "receiver.env",
+        "scenario-authorities.json", "scenario-authorities-b.json",
     }
     assert "root_private_key" in principal
     assert "agent_private_key" in principal
@@ -50,8 +52,41 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert receiver["RATIFY_REVOKED_CERT_IDS"] == decode_delegation_cert(
         scenarios["revoked"]
     ).cert_id
-    assert agent["RATIFY_RECEIVER_TOKEN"] == receiver["RATIFY_CALLER_TOKEN"]
+    assert agent["RATIFY_RECEIVER_TOKEN"] == receiver["RATIFY_CALLER_TOKEN_PRIMARY"]
     assert agent["RATIFY_DEMO_TOKEN"] != agent["RATIFY_RECEIVER_TOKEN"]
+
+    # The second runtime is a separate tenant: its own subject, its own
+    # transport credential, its own bounds, and no access to the first agent's
+    # private key.
+    second_agent = _env(output / "agent-b.env")
+    second_delegation = decode_delegation_cert(
+        (output / "delegation-b.json").read_text()
+    )
+    peer = json.loads((output / "scenario-authorities-b.json").read_text())
+    assert second_agent["RATIFY_RECEIVER_TOKEN"] == receiver[
+        "RATIFY_CALLER_TOKEN_SECONDARY"
+    ]
+    assert second_agent["RATIFY_RECEIVER_TOKEN"] != agent["RATIFY_RECEIVER_TOKEN"]
+    assert second_agent["RATIFY_DEMO_TOKEN"] != agent["RATIFY_DEMO_TOKEN"]
+    assert second_agent["RATIFY_AGENT_ED25519_PRIVATE_B64"] != agent[
+        "RATIFY_AGENT_ED25519_PRIVATE_B64"
+    ]
+    assert second_delegation.subject_id == receiver["RATIFY_AGENT_ID_SECONDARY"]
+    assert second_delegation.subject_id != delegation.subject_id
+    assert verify_delegation_signature(second_delegation)
+    assert [
+        constraint.resource_id for constraint in second_delegation.constraints
+        if constraint.type == "resource_path"
+    ] == [SECOND_RESOURCE]
+    assert [
+        constraint.max_amount for constraint in second_delegation.constraints
+        if constraint.type == "max_amount"
+    ] == [SECOND_MAX_AMOUNT_MINOR / 100]
+    assert set(peer) == {"peer_delegation"}
+    assert decode_delegation_cert(peer["peer_delegation"]).subject_id == (
+        delegation.subject_id
+    )
+    assert principal["agent_private_key"]["ed25519"] not in json.dumps(peer)
     assert delegation.expires_at - delegation.issued_at == DEMO_VALIDITY_SECONDS
     assert verify_delegation_signature(delegation)
     assert manifest["agent_id"] == delegation.subject_id
@@ -66,7 +101,9 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert principal["agent_private_key"]["ed25519"] not in manifest_text
 
     for name in (
-        "principal.json", "receiver.env", "agent.env", "scenario-authorities.json"
+        "principal.json", "receiver.env", "agent.env", "agent-b.env",
+        "scenario-authorities.json", "delegation-b.json",
+        "scenario-authorities-b.json",
     ):
         assert stat.S_IMODE((output / name).stat().st_mode) == 0o600
     assert stat.S_IMODE((output / "manifest.json").stat().st_mode) == 0o644
@@ -82,7 +119,8 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
 
     renewed = decode_delegation_cert((renewal / "delegation.json").read_text())
     assert set(path.name for path in renewal.iterdir()) == {
-        "delegation.json", "manifest.json", "scenario-authorities.json"
+        "delegation.json", "delegation-b.json", "manifest.json",
+        "scenario-authorities.json", "scenario-authorities-b.json",
     }
     assert renewed.issuer_id == original.issuer_id
     assert renewed.subject_id == original.subject_id
@@ -93,6 +131,24 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     assert renewed.issued_at == 1_800_432_000
     assert renewed.expires_at - renewed.issued_at == DEMO_VALIDITY_SECONDS
     assert verify_delegation_signature(renewed)
+
+    # Renewal has to replace both tenants, or the second runtime keeps an
+    # expiring delegation while the first is refreshed.
+    original_second = decode_delegation_cert(
+        (initial / "delegation-b.json").read_text()
+    )
+    renewed_second = decode_delegation_cert(
+        (renewal / "delegation-b.json").read_text()
+    )
+    assert renewed_second.subject_id == original_second.subject_id
+    assert renewed_second.constraints == original_second.constraints
+    assert renewed_second.cert_id != original_second.cert_id
+    assert renewed_second.issued_at == 1_800_432_000
+    assert verify_delegation_signature(renewed_second)
+    assert json.loads(
+        (renewal / "scenario-authorities-b.json").read_text()
+    )["peer_delegation"] == (renewal / "delegation.json").read_text()
+
     delegation_bytes = (renewal / "delegation.json").read_bytes()
     manifest = json.loads((renewal / "manifest.json").read_text())
     assert not delegation_bytes.endswith(b"\n")

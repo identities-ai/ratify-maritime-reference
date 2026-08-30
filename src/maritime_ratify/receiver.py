@@ -29,8 +29,8 @@ from .profile import (
     CATEGORY_CONSTRAINT,
     DEFAULT_CATEGORY,
     DEFAULT_CURRENCY,
-    DEFAULT_MAX_AMOUNT_MINOR,
-    DEFAULT_RESOURCE,
+    MANAGED_RESOURCES,
+    RECEIVER_CEILING_MINOR,
     VERIFIER_ID,
     WORKSPACE_ID,
     WORK_ORDER_SCOPE,
@@ -93,9 +93,9 @@ class WorkOrderReceiver:
         trusted_root_id: str,
         trusted_root_public_key: Any,
         clock: Callable[[], int] | None = None,
-        resource: str = DEFAULT_RESOURCE,
+        managed_resources: tuple[str, ...] = MANAGED_RESOURCES,
         category: str = DEFAULT_CATEGORY,
-        max_amount_minor: int = DEFAULT_MAX_AMOUNT_MINOR,
+        ceiling_minor: int = RECEIVER_CEILING_MINOR,
         currency: str = DEFAULT_CURRENCY,
     ) -> None:
         self.trusted_root_id = trusted_root_id
@@ -103,9 +103,9 @@ class WorkOrderReceiver:
         self.challenge_store = MemoryChallengeStore(max_size=128)
         self.revocation = StaticRevocationProvider()
         self._clock = clock or (lambda: int(time.time()))
-        self._resource = resource
+        self._managed_resources = frozenset(managed_resources)
         self._category = category
-        self._max_amount_minor = max_amount_minor
+        self._ceiling_minor = ceiling_minor
         self._currency = currency
         self._pending: dict[str, _Pending] = {}
         self._lock = threading.RLock()
@@ -252,13 +252,16 @@ class WorkOrderReceiver:
         present = {constraint.type for constraint in bundle.delegations[0].constraints}
         if not required_constraints.issubset(present):
             return "DENY_CONSTRAINT_MISMATCH"
-        if action.resource != self._resource:
+        # Receiver capability, not agent authority. Whether this particular
+        # agent may act on a managed site, and for how much, is decided by its
+        # delegation during verification, which runs before this check.
+        if action.resource not in self._managed_resources:
             return "DENY_RESOURCE_MISMATCH"
         if action.category != self._category:
             return "DENY_CONSTRAINT_MISMATCH"
         if action.currency != self._currency:
             return "DENY_CONSTRAINT_MISMATCH"
-        if action.amount_minor > self._max_amount_minor:
+        if action.amount_minor > self._ceiling_minor:
             return "DENY_LIMIT_EXCEEDED"
         return None
 

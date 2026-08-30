@@ -46,7 +46,7 @@ async def _exercise_service():
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        expected_agent_id=authority.agent_id,
+        caller_subjects={"caller-agent": authority.agent_id},
         allowed_hosts=["test"],
     )
     args = {
@@ -120,7 +120,7 @@ async def _exercise_dependency_failure():
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=RaisingRegistry(clock=lambda: now),
-        expected_agent_id=authority.agent_id,
+        caller_subjects={"caller-agent": authority.agent_id},
         allowed_hosts=["test"],
     )
     args = {
@@ -173,7 +173,7 @@ async def _exercise_service_rejections():
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        expected_agent_id=authority.agent_id,
+        caller_subjects={"caller-agent": authority.agent_id},
         allowed_hosts=["test"],
     )
     args = {
@@ -257,7 +257,7 @@ async def _exercise_maritime_proxy_host():
         ),
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        expected_agent_id=authority.agent_id,
+        caller_subjects={"caller-agent": authority.agent_id},
         allowed_hosts=["test"],
         allow_maritime_proxy_host=True,
     )
@@ -295,3 +295,55 @@ def _structured_result(result):
     structured = result.structuredContent
     assert structured is not None
     return structured.get("result", structured)
+
+
+def test_authenticated_caller_without_a_configured_subject_is_refused():
+    asyncio.run(_exercise_unmapped_caller())
+
+
+async def _exercise_unmapped_caller():
+    """Authentication alone must not confer a subject.
+
+    The receiver maps each authenticated caller to exactly one expected agent.
+    A caller holding a valid transport credential but no configured subject is
+    refused rather than being allowed to name a subject of its own choosing.
+    """
+    now = int(time.time())
+    authority = issue_authority(now=now - 1)
+    receiver = WorkOrderReceiver(
+        trusted_root_id=authority.root_id,
+        trusted_root_public_key=authority.root_public_key,
+        clock=lambda: now,
+    )
+    app = create_receiver_app(
+        receiver=receiver,
+        authenticator=CallerAuthenticator({"agent-secret": "caller-unmapped"}),
+        presentations=PresentationRegistry(clock=lambda: now),
+        caller_subjects={"caller-agent": authority.agent_id},
+        allowed_hosts=["test"],
+    )
+    args = {
+        "request_id": "req-unmapped-caller",
+        "resource": "site:warehouse-seattle-01",
+        "category": "electrical",
+        "amount_minor": 42_000,
+        "currency": "USD",
+        "description": "Inspect and repair loading-bay lighting",
+    }
+    transport = httpx.ASGITransport(app=app)
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-Ratify-Caller-Token": "Bearer agent-secret"},
+        ) as http:
+            async with streamable_http_client(
+                "http://test/mcp/", http_client=http
+            ) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    denied = _structured_result(
+                        await session.call_tool("issue_work_order_challenge", args)
+                    )
+    assert denied == {"decision": "DENY", "reason": "DENY_CALLER_MISMATCH"}
+    assert receiver.handler_invocations == 0

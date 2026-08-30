@@ -47,16 +47,41 @@ def build_app():
         host.strip() for host in required("RATIFY_ALLOWED_HOSTS").split(",")
         if host.strip()
     ]
+    credentials, caller_subjects = _caller_configuration()
     return create_receiver_app(
         receiver=receiver,
-        authenticator=CallerAuthenticator(
-            {required("RATIFY_CALLER_TOKEN"): required("RATIFY_CALLER_ID")}
-        ),
+        authenticator=CallerAuthenticator(credentials),
         presentations=PresentationRegistry(),
-        expected_agent_id=required("RATIFY_AGENT_ID"),
+        caller_subjects=caller_subjects,
         allowed_hosts=hosts,
         allow_maritime_proxy_host=True,
     )
+
+
+def _caller_configuration() -> tuple[dict[str, str], dict[str, str]]:
+    """Bind each configured transport credential to exactly one subject.
+
+    Authentication identifies a caller. It does not let that caller choose
+    which agent it presents as, so every slot names its own expected subject.
+    """
+    slots = [
+        slot.strip().upper()
+        for slot in required("RATIFY_CALLER_SLOTS").split(",")
+        if slot.strip()
+    ]
+    if not slots:
+        raise RuntimeError("missing required environment setting: RATIFY_CALLER_SLOTS")
+    credentials: dict[str, str] = {}
+    caller_subjects: dict[str, str] = {}
+    for slot in slots:
+        token = required(f"RATIFY_CALLER_TOKEN_{slot}")
+        caller_id = required(f"RATIFY_CALLER_ID_{slot}")
+        agent_id = required(f"RATIFY_AGENT_ID_{slot}")
+        if token in credentials or caller_id in caller_subjects:
+            raise RuntimeError("duplicate caller slot configuration")
+        credentials[token] = caller_id
+        caller_subjects[caller_id] = agent_id
+    return credentials, caller_subjects
 
 
 if __name__ == "__main__":
