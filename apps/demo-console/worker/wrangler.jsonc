@@ -13,6 +13,7 @@
   ],
   "vars": {
     "AGENT_URL": "https://api.maritime.sh/a/526e13bb-5a8c-47fc-94bf-96a0dc417983",
+    "AGENT_B_URL": "https://api.maritime.sh/a/2923663f-093a-48c3-bdf7-55e86256ced6",
     "CONSOLE_ORIGIN": "https://labs.ratifyprotocol.com"
   },
   "durable_objects": {

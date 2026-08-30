@@ -49,8 +49,10 @@ function environment(options: { allowed?: boolean; limiterFailure?: boolean } = 
   return {
     env: {
       AGENT_URL: "https://agent.example",
+      AGENT_B_URL: "https://agent-b.example",
       CONSOLE_ORIGIN: ORIGIN,
       RATIFY_DEMO_TOKEN: TOKEN,
+      RATIFY_DEMO_TOKEN_B: `${TOKEN}-b`,
       SCENARIO_LIMITER: {
         idFromName: () => "one-global-object",
         get: () => ({ fetch: limiter }),
@@ -415,4 +417,45 @@ describe("durable limiter", () => {
     expect(storage.values.has("client:old-client")).toBe(false);
     expect(storage.values.has("client:new-client")).toBe(true);
   });
+});
+
+describe("runtime routing", () => {
+  it.each([
+    ["allow", "https://agent.example/chat", `Bearer ${TOKEN}`],
+    ["copied_certificate", "https://agent.example/chat", `Bearer ${TOKEN}`],
+    ["isolation_own", "https://agent-b.example/chat", `Bearer ${TOKEN}-b`],
+    ["isolation_borrowed_certificate", "https://agent-b.example/chat", `Bearer ${TOKEN}-b`],
+  ])("sends %s to its own runtime with that runtime's credential", async (
+    scenario, url, credential,
+  ) => {
+    const { env } = environment();
+    const fetchAgent = agent();
+    await handleRequest(request({ scenario }), env, fetchAgent);
+    expect(fetchAgent.mock.calls[0][0]).toBe(url);
+    const init = fetchAgent.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)["X-Ratify-Demo-Token"])
+      .toBe(credential);
+  });
+
+  it("never sends the second runtime's credential to the first", async () => {
+    const { env } = environment();
+    const fetchAgent = agent();
+    await handleRequest(request({ scenario: "allow" }), env, fetchAgent);
+    const init = fetchAgent.mock.calls[0][1] as RequestInit;
+    expect(JSON.stringify(init.headers)).not.toContain(`${TOKEN}-b`);
+  });
+
+  it.each(["isolation_own", "allow"])(
+    "fails closed for %s when its runtime is not configured",
+    async (scenario) => {
+      const { env } = environment();
+      const fetchAgent = agent();
+      const stripped = scenario.startsWith("isolation_")
+        ? { ...env, RATIFY_DEMO_TOKEN_B: "" }
+        : { ...env, RATIFY_DEMO_TOKEN: "" };
+      const response = await handleRequest(request({ scenario }), stripped, fetchAgent);
+      expect(response.status).toBe(503);
+      expect(fetchAgent).not.toHaveBeenCalled();
+    },
+  );
 });
