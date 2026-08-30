@@ -24,7 +24,13 @@ from ratify_protocol import (
 
 from maritime_ratify import WorkOrder, WorkOrderReceiver, issue_authority
 from maritime_ratify.authority import AuthorityFixture, WORK_ORDER_SCOPE
-from maritime_ratify.profile import AUDIENCE_CONSTRAINT, CATEGORY_CONSTRAINT, VERIFIER_ID
+from maritime_ratify.profile import (
+    AUDIENCE_CONSTRAINT,
+    CATEGORY_CONSTRAINT,
+    RECEIVER_CEILING_MINOR,
+    SECOND_RESOURCE,
+    VERIFIER_ID,
+)
 
 
 def setup_reference(**authority_options):
@@ -478,3 +484,76 @@ def test_handler_is_separate_and_never_called_on_denial(monkeypatch):
     monkeypatch.setattr(receiver, "_invoke_handler", forbidden)
     result = receiver.execute(requested, proof)
     assert result["reason"] == "DENY_LIMIT_EXCEEDED"
+
+
+def test_receiver_capability_is_separate_from_agent_authority():
+    """A site the receiver manages is still denied unless this agent holds it.
+
+    This is the distinction the two-runtime demonstration rests on. The
+    receiver manages Seattle and Portland; an agent delegated only Seattle must
+    still be denied for Portland, and the denial has to come from verifying its
+    delegation rather than from the receiver's own capability check.
+    """
+    now, authority, receiver = setup_reference()
+    requested = action(request_id="req-managed-not-delegated", resource=SECOND_RESOURCE)
+    proof = present(authority, receiver, requested, now)
+    result = receiver.execute(requested, proof)
+    assert result["decision"] == "DENY"
+    assert result["reason"] == "DENY_RESOURCE_MISMATCH"
+    assert result["decided_by"] == "ratify_verification"
+    assert result["verification_status"] == "constraint_denied"
+    assert result["handler_invoked"] is False
+
+
+def test_receiver_refuses_a_site_it_does_not_manage():
+    now, authority, receiver = setup_reference(resource="site:warehouse-denver-01")
+    requested = action(
+        request_id="req-unmanaged", resource="site:warehouse-denver-01"
+    )
+    proof = present(authority, receiver, requested, now)
+    result = receiver.execute(requested, proof)
+    assert result["decision"] == "DENY"
+    assert result["reason"] == "DENY_RESOURCE_MISMATCH"
+    assert result["decided_by"] == "receiver_policy"
+    assert result["handler_invoked"] is False
+
+
+def test_receiver_ceiling_applies_above_every_delegated_ceiling():
+    now, authority, receiver = setup_reference(
+        max_amount_minor=RECEIVER_CEILING_MINOR + 100_000
+    )
+    requested = action(
+        request_id="req-above-ceiling", amount_minor=RECEIVER_CEILING_MINOR + 1
+    )
+    proof = present(authority, receiver, requested, now)
+    result = receiver.execute(requested, proof)
+    assert result["decision"] == "DENY"
+    assert result["reason"] == "DENY_LIMIT_EXCEEDED"
+    assert result["decided_by"] == "receiver_policy"
+    assert result["handler_invoked"] is False
+
+
+def test_second_agent_cannot_use_the_first_agents_subject():
+    """The deployed cross-runtime case, without the deployment.
+
+    One receiver, two separately delegated agents. The challenge is issued for
+    agent B, and agent A's authority presented against it is refused before any
+    verification, because the receiver binds the challenge to one subject.
+    """
+    now, first, receiver = setup_reference()
+    second = issue_authority(now=now - 1, resource=SECOND_RESOURCE)
+    requested = action(request_id="req-cross-runtime")
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_id=second.agent_id
+    )
+    assert challenge.grant is not None
+    borrowed = first.present(
+        challenge=challenge.grant.challenge,
+        session_context=challenge.grant.session_context,
+        now=now,
+    )
+    result = receiver.execute(requested, borrowed)
+    assert result["decision"] == "DENY"
+    assert result["reason"] == "DENY_SUBJECT_MISMATCH"
+    assert result["decided_by"] == "receiver_precheck"
+    assert result["handler_invoked"] is False

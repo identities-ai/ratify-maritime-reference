@@ -28,6 +28,8 @@ from .profile import (
     DEFAULT_CURRENCY,
     DEFAULT_MAX_AMOUNT_MINOR,
     DEFAULT_RESOURCE,
+    SECOND_MAX_AMOUNT_MINOR,
+    SECOND_RESOURCE,
     VERIFIER_ID,
     WORK_ORDER_SCOPE,
 )
@@ -42,6 +44,9 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
     wrong_agent, wrong_agent_private = generate_agent(
         "Maritime Wrong-Agent Adversary", "custom"
     )
+    second, second_private = generate_agent(
+        "Maritime Portland Work Order Agent", "custom"
+    )
     delegations = _issue_scenario_delegations(
         root_id=root.id,
         root_public_key=root.public_key,
@@ -50,10 +55,14 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
         agent_public_key=agent.public_key,
         wrong_agent_id=wrong_agent.id,
         wrong_agent_public_key=wrong_agent.public_key,
+        second_agent_id=second.id,
+        second_agent_public_key=second.public_key,
         issued_at=issued_at,
     )
     receiver_token = secrets.token_urlsafe(32)
     demo_token = secrets.token_urlsafe(32)
+    second_receiver_token = secrets.token_urlsafe(32)
+    second_demo_token = secrets.token_urlsafe(32)
     _prepare_output(output)
     _write_private_json(output / "principal.json", {
         "root_id": root.id,
@@ -65,29 +74,32 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
         "wrong_agent_id": wrong_agent.id,
         "wrong_agent_public_key": _public(wrong_agent.public_key),
         "wrong_agent_private_key": _private(wrong_agent_private),
+        "second_agent_id": second.id,
+        "second_agent_public_key": _public(second.public_key),
+        "second_agent_private_key": _private(second_private),
     })
-    _write_private_env(output / "receiver.env", {
-        "RATIFY_ROOT_ID": root.id,
-        "RATIFY_ROOT_ED25519_B64": _b64(root.public_key.ed25519),
-        "RATIFY_ROOT_ML_DSA_65_B64": _b64(root.public_key.ml_dsa_65),
-        "RATIFY_AGENT_ID": agent.id,
-        "RATIFY_CALLER_ID": "maritime-demo-agent",
-        "RATIFY_CALLER_TOKEN": receiver_token,
-        "RATIFY_REVOKED_CERT_IDS": delegations["revoked"].cert_id,
-    })
+    _write_private_env(output / "receiver.env", _receiver_environment(
+        root=root,
+        revoked_cert_id=delegations["revoked"].cert_id,
+        primary_agent_id=agent.id,
+        primary_token=receiver_token,
+        secondary_agent_id=second.id,
+        secondary_token=second_receiver_token,
+    ))
     wire = encode_delegation_cert(delegations["active"])
     scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
-    _write_private_env(output / "agent.env", {
-        "RATIFY_DELEGATION_PATH": "/app/deployment/delegation.json",
-        "RATIFY_SCENARIO_AUTHORITIES_PATH": "/app/deployment/scenario-authorities.json",
-        "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(agent_private.ed25519),
-        "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(agent_private.ml_dsa_65),
-        "RATIFY_RECEIVER_TOKEN": receiver_token,
-        "RATIFY_DEMO_TOKEN": demo_token,
-        "RATIFY_MODEL_MODE": "deterministic",
-    })
+    second_wire = encode_delegation_cert(delegations["second"])
+    peer_wire = _peer_authorities_wire(wire)
+    _write_private_env(output / "agent.env", _agent_environment(
+        agent_private, receiver_token, demo_token
+    ))
+    _write_private_env(output / "agent-b.env", _agent_environment(
+        second_private, second_receiver_token, second_demo_token
+    ))
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
+    _write_private(output / "delegation-b.json", second_wire)
+    _write_private(output / "scenario-authorities-b.json", peer_wire)
     _write_manifest(
         output / "manifest.json", delegations, wire, scenario_wire
     )
@@ -103,6 +115,7 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
         agent_private = _decode_private(principal["agent_private_key"])
         wrong_agent_public = _decode_public(principal["wrong_agent_public_key"])
         wrong_agent_private = _decode_private(principal["wrong_agent_private_key"])
+        second_public = _decode_public(principal["second_agent_public_key"])
         delegations = _issue_scenario_delegations(
             root_id=principal["root_id"],
             root_public_key=root_public,
@@ -111,6 +124,8 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
             agent_public_key=agent_public,
             wrong_agent_id=principal["wrong_agent_id"],
             wrong_agent_public_key=wrong_agent_public,
+            second_agent_id=principal["second_agent_id"],
+            second_agent_public_key=second_public,
             issued_at=issued_at,
         )
     except (KeyError, TypeError, ValueError):
@@ -120,6 +135,7 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
         derive_id(root_public) != principal["root_id"]
         or derive_id(agent_public) != principal["agent_id"]
         or derive_id(wrong_agent_public) != principal["wrong_agent_id"]
+        or derive_id(second_public) != principal["second_agent_id"]
         or verify_both(probe, sign_both(probe, agent_private), agent_public) is not None
         or verify_both(
             probe, sign_both(probe, wrong_agent_private), wrong_agent_public
@@ -135,6 +151,10 @@ def renew_deployment(principal_path: Path, output: Path, *, now: int | None = No
     scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
+    _write_private(output / "delegation-b.json", encode_delegation_cert(
+        delegations["second"]
+    ))
+    _write_private(output / "scenario-authorities-b.json", _peer_authorities_wire(wire))
     _write_manifest(
         output / "manifest.json", delegations, wire, scenario_wire
     )
@@ -149,6 +169,8 @@ def _issue_scenario_delegations(
     agent_public_key: HybridPublicKey,
     wrong_agent_id: str,
     wrong_agent_public_key: HybridPublicKey,
+    second_agent_id: str,
+    second_agent_public_key: HybridPublicKey,
     issued_at: int,
 ) -> dict[str, object]:
     common = {
@@ -178,6 +200,18 @@ def _issue_scenario_delegations(
             issued_at=issued_at,
             expires_at=issued_at + DEMO_VALIDITY_SECONDS,
         ),
+        # A second tenant on the same receiver: different subject, different
+        # site, and a lower ceiling, so the pair separates agent authority from
+        # receiver capability.
+        "second": issue_bounded_delegation(
+            **common,
+            agent_id=second_agent_id,
+            agent_public_key=second_agent_public_key,
+            issued_at=issued_at,
+            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
+            resource=SECOND_RESOURCE,
+            max_amount_minor=SECOND_MAX_AMOUNT_MINOR,
+        ),
         "wrong_agent": issue_bounded_delegation(
             **common,
             agent_id=wrong_agent_id,
@@ -186,6 +220,59 @@ def _issue_scenario_delegations(
             expires_at=issued_at + DEMO_VALIDITY_SECONDS,
         ),
     }
+
+
+def _receiver_environment(
+    *,
+    root,
+    revoked_cert_id: str,
+    primary_agent_id: str,
+    primary_token: str,
+    secondary_agent_id: str,
+    secondary_token: str,
+) -> dict[str, str]:
+    """Receiver configuration binding each caller to exactly one subject."""
+    return {
+        "RATIFY_ROOT_ID": root.id,
+        "RATIFY_ROOT_ED25519_B64": _b64(root.public_key.ed25519),
+        "RATIFY_ROOT_ML_DSA_65_B64": _b64(root.public_key.ml_dsa_65),
+        "RATIFY_CALLER_SLOTS": "primary,secondary",
+        "RATIFY_CALLER_ID_PRIMARY": "maritime-demo-agent",
+        "RATIFY_CALLER_TOKEN_PRIMARY": primary_token,
+        "RATIFY_AGENT_ID_PRIMARY": primary_agent_id,
+        "RATIFY_CALLER_ID_SECONDARY": "maritime-demo-agent-b",
+        "RATIFY_CALLER_TOKEN_SECONDARY": secondary_token,
+        "RATIFY_AGENT_ID_SECONDARY": secondary_agent_id,
+        "RATIFY_REVOKED_CERT_IDS": revoked_cert_id,
+    }
+
+
+def _agent_environment(
+    private_key: HybridPrivateKey, receiver_token: str, demo_token: str
+) -> dict[str, str]:
+    """Both runtimes share one image and differ only by injected authority."""
+    return {
+        "RATIFY_DELEGATION_PATH": "/app/deployment/delegation.json",
+        "RATIFY_SCENARIO_AUTHORITIES_PATH": "/app/deployment/scenario-authorities.json",
+        "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(private_key.ed25519),
+        "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(private_key.ml_dsa_65),
+        "RATIFY_RECEIVER_TOKEN": receiver_token,
+        "RATIFY_DEMO_TOKEN": demo_token,
+        "RATIFY_MODEL_MODE": "deterministic",
+    }
+
+
+def _peer_authorities_wire(peer_delegation_wire: str) -> str:
+    """The second runtime carries the first runtime's public certificate only.
+
+    It never receives the first agent's private key, which is what makes the
+    cross-runtime attempts meaningful rather than staged.
+    """
+    return json.dumps(
+        {"peer_delegation": peer_delegation_wire},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _scenario_authorities_wire(
@@ -287,15 +374,17 @@ def _load_principal(path: Path) -> dict:
             "root_id", "root_public_key", "root_private_key",
             "agent_id", "agent_public_key", "agent_private_key",
             "wrong_agent_id", "wrong_agent_public_key", "wrong_agent_private_key",
+            "second_agent_id", "second_agent_public_key", "second_agent_private_key",
         }:
             raise ValueError
-        for name in ("root_id", "agent_id", "wrong_agent_id"):
+        for name in ("root_id", "agent_id", "wrong_agent_id", "second_agent_id"):
             if type(principal[name]) is not str:
                 raise ValueError
         for name in (
             "root_public_key", "root_private_key",
             "agent_public_key", "agent_private_key",
             "wrong_agent_public_key", "wrong_agent_private_key",
+            "second_agent_public_key", "second_agent_private_key",
         ):
             if type(principal[name]) is not dict or set(principal[name]) != {
                 "ed25519", "ml_dsa_65"
