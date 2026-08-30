@@ -23,7 +23,12 @@ const SCENARIO_PATTERN = [
 const WINDOW_MS = 60_000;
 const PER_CLIENT_LIMIT = 10;
 const GLOBAL_LIMIT = 80;
-const AGENT_TIMEOUT_MS = 15_000;
+// Both Maritime runtimes auto-sleep independently. A request that arrives after
+// an idle period has to wake the agent and then the receiver, and each wake was
+// measured between 12 and 29 seconds. A 15 second budget turned that into a
+// failed scenario; this budget turns it into a slow one, which is what the
+// console's staged waiting copy already describes.
+const AGENT_TIMEOUT_MS = 60_000;
 
 interface RateLimitResult {
   allowed: boolean;
