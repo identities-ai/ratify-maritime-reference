@@ -53,10 +53,17 @@ python3 scripts/reproduce_gate_locally.py
 ```
 
 It needs only Docker and Python 3.10 or newer. It issues a fresh principal
-inside the published agent image, runs both published digests on a private
-Docker network, and checks every result against
-[`docs/gate-expectations.json`](docs/gate-expectations.json), the single
-contract that the live gate and the full-gate test also read.
+inside the published agent image, runs one receiver and two agent containers
+from the published digests on a private Docker network, and checks every result
+against [`docs/gate-expectations.json`](docs/gate-expectations.json) and
+[`docs/runtime-isolation-expectations.json`](docs/runtime-isolation-expectations.json),
+the contracts that the deployed gates and the in-repository tests also read.
+
+Two Maritime runtimes run the same agent image and differ only by injected
+authority: one delegated Seattle at five hundred dollars, the other Portland at
+two hundred. Neither holds the other's private key. See
+[`docs/RUNTIME-ISOLATION.md`](docs/RUNTIME-ISOLATION.md) for what that
+demonstrates and how to reproduce it.
 
 ## Maritime agent runtime
 

@@ -5,7 +5,9 @@ This is the check the published results artifact cannot be: it does not ask the
 reader to trust a response from Ratify-operated infrastructure. It runs the
 published agent and receiver image digests on the reader's own machine, against
 a principal issued on that machine seconds earlier, and compares every result
-against `docs/gate-expectations.json`.
+against `docs/gate-expectations.json`, then starts a second agent container from
+the same image digest and reproduces the cross-runtime attempts in
+`docs/runtime-isolation-expectations.json`.
 
 Requirements are Docker and Python 3.10 or newer. There is no repository
 install, no Ratify credential, and no call to the live deployment.
@@ -29,14 +31,17 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 EXPECTATIONS = REPOSITORY / "docs" / "gate-expectations.json"
+ISOLATION_EXPECTATIONS = (
+    REPOSITORY / "docs" / "runtime-isolation-expectations.json"
+)
 
 DEFAULT_AGENT_IMAGE = (
     "ghcr.io/identities-ai/ratify-maritime-agent"
-    "@sha256:d03f6173557b4654da91af9cd16f8d478186b908c868279b0e2843720419a0d6"
+    "@sha256:cbf07e106ecc07a41f6babd94b41d7cef900c15c4536b7cb1ace3a54ca93817b"
 )
 DEFAULT_RECEIVER_IMAGE = (
     "ghcr.io/identities-ai/ratify-maritime-receiver"
-    "@sha256:baa50190790a6734fedc9976e0d7a60424a1a4d18a86a9ee0dd531a68a0e0bed"
+    "@sha256:dbbef49f304ab682799137745c949b0bf07340725b07fc6a3d98177a9bb9c5e4"
 )
 RECEIVER_ALIAS = "receiver"
 CONTAINER_PORT = "8080"
@@ -176,6 +181,8 @@ def _start_agent(
     issuance: Path,
     environment: Path,
     port: int,
+    delegation: str = "delegation.json",
+    authorities: str = "scenario-authorities.json",
 ) -> None:
     receiver = f"http://{RECEIVER_ALIAS}:{CONTAINER_PORT}"
     _run([
@@ -188,11 +195,10 @@ def _start_agent(
         # The published image carries the deployment's own delegation. These
         # mounts replace it with the principal issued on this machine, so the
         # reproduction never depends on deployment authority material.
-        "-v", f"{issuance / 'delegation.json'}:/app/deployment/delegation.json:ro",
-        "-v", (
-            f"{issuance / 'scenario-authorities.json'}"
-            ":/app/deployment/scenario-authorities.json:ro"
-        ),
+        "-e", f"RATIFY_DELEGATION_PATH=/app/deployment/{delegation}",
+        "-e", f"RATIFY_SCENARIO_AUTHORITIES_PATH=/app/deployment/{authorities}",
+        "-v", f"{issuance / delegation}:/app/deployment/{delegation}:ro",
+        "-v", f"{issuance / authorities}:/app/deployment/{authorities}:ro",
         "-p", f"127.0.0.1:{port}:{CONTAINER_PORT}",
         image,
     ])
@@ -261,6 +267,9 @@ def main() -> int:
     arguments = parser.parse_args()
 
     expectations = json.loads(EXPECTATIONS.read_text(encoding="utf-8"))["scenarios"]
+    isolation = json.loads(
+        ISOLATION_EXPECTATIONS.read_text(encoding="utf-8")
+    )["attempts"]
 
     print(f"agent image    {arguments.agent_image}")
     print(f"receiver image {arguments.receiver_image}")
@@ -294,7 +303,9 @@ def main() -> int:
     network = f"ratify-repro-{suffix}"
     receiver_name = f"ratify-repro-receiver-{suffix}"
     agent_name = f"ratify-repro-agent-{suffix}"
+    second_name = f"ratify-repro-agent-b-{suffix}"
     port = _free_port()
+    second_port = _free_port()
 
     with tempfile.TemporaryDirectory(
         prefix=".ratify-repro-", dir=str(workspace_root)
@@ -314,7 +325,17 @@ def main() -> int:
                 agent_name, network, arguments.agent_image, arguments.platform,
                 issuance, issuance / "agent.env", port,
             )
+            # The same image digest, a different injected authority. This is the
+            # second runtime, and it never receives the first agent's key.
+            _start_agent(
+                second_name, network, arguments.agent_image, arguments.platform,
+                issuance, issuance / "agent-b.env", second_port,
+                delegation="delegation-b.json",
+                authorities="scenario-authorities-b.json",
+            )
             _await_health(port, agent_name)
+            _await_health(second_port, second_name)
+            second_environment = _read_env(issuance / "agent-b.env")
             print("executing every enumerated scenario\n")
 
             failures = []
@@ -335,6 +356,31 @@ def main() -> int:
                     f"  {'PASS' if passed else 'FAIL'}  {scenario:<{width}}  "
                     f"{actual['reason']}  decided by {actual['decided_by']}"
                 )
+
+            print("\nexecuting every cross-runtime attempt\n")
+            ports = {"primary": port, "secondary": second_port}
+            tokens = {
+                "primary": agent_environment["RATIFY_DEMO_TOKEN"],
+                "secondary": second_environment["RATIFY_DEMO_TOKEN"],
+            }
+            width = max(len(name) for name in isolation)
+            for name, expected in isolation.items():
+                runtime = expected["runtime"]
+                observed = _execute(
+                    ports[runtime], tokens[runtime], expected["scenario"]
+                )
+                actual = {field: observed.get(field) for field in COMPARED}
+                passed = all(actual[field] == expected[field] for field in COMPARED)
+                if not passed:
+                    failures.append({
+                        "attempt": name,
+                        "expected": {f: expected[f] for f in COMPARED},
+                        "observed": actual,
+                    })
+                print(
+                    f"  {'PASS' if passed else 'FAIL'}  {name:<{width}}  "
+                    f"{actual['reason']}  decided by {actual['decided_by']}"
+                )
         except subprocess.CalledProcessError as error:
             print(f"\ncommand failed: {error.stderr.strip()}", file=sys.stderr)
             return 2
@@ -342,7 +388,7 @@ def main() -> int:
             print(f"\nreproduction failed: {error}", file=sys.stderr)
             return 2
         finally:
-            _remove(agent_name, receiver_name)
+            _remove(agent_name, second_name, receiver_name)
             subprocess.run(
                 ["docker", "network", "rm", network], capture_output=True, text=True
             )
@@ -350,7 +396,10 @@ def main() -> int:
     if failures:
         print(json.dumps(failures, indent=2), file=sys.stderr)
         return 1
-    print(f"\nPASS: {len(expectations)} scenarios reproduced from the published images")
+    print(
+        f"\nPASS: {len(expectations)} scenarios and {len(isolation)} cross-runtime "
+        "attempts reproduced from the published images"
+    )
     return 0
 
 
