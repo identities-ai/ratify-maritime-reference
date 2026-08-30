@@ -6,6 +6,7 @@ import base64
 import contextlib
 import ipaddress
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -36,7 +37,7 @@ def create_receiver_app(
     receiver: WorkOrderReceiver,
     authenticator: CallerAuthenticator,
     presentations: PresentationRegistry,
-    expected_agent_id: str,
+    caller_subjects: Mapping[str, str],
     allowed_hosts: list[str] | None = None,
     allow_maritime_proxy_host: bool = False,
 ) -> Starlette:
@@ -75,6 +76,9 @@ def create_receiver_app(
             action = _work_order(
                 request_id, resource, category, amount_minor, currency, description
             )
+            expected_agent_id = caller_subjects.get(caller_id)
+            if expected_agent_id is None:
+                return {"decision": "DENY", "reason": "DENY_CALLER_MISMATCH"}
             result = receiver.issue_challenge(
                 action, expected_agent_id=expected_agent_id, caller_id=caller_id
             )
