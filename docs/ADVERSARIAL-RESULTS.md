@@ -1,7 +1,7 @@
 # Inspectable adversarial results
 
 The Maritime pilot is complete only when the public deployment executes one
-permitted request and seven distinct denied requests. The result is recorded as
+permitted request and eight distinct denied requests. The result is recorded as
 JSON in `evidence/adversarial-results.json`; it is not inferred from unit tests
 or prefilled by the console.
 
@@ -15,15 +15,18 @@ or prefilled by the console.
 | Revoked delegation | `DENY_REVOKED` | `ratify_verification` | Not invoked |
 | Replayed proof | `DENY_REPLAY` | `proof_carrier` | Not invoked for the replay attempt |
 | Wrong agent | `DENY_SUBJECT_MISMATCH` | `receiver_precheck` | Not invoked |
+| Copied certificate | `DENY_VERIFICATION_FAILED` | `ratify_verification` | Not invoked |
 
 Every result records `decided_by` and, where verification was reached, the
 Ratify `verification_status`. The deciding layer is part of the required
 result, so a scenario that starts being denied somewhere else fails the gate.
 
-Five of the eight decisions are reached by Ratify verification: the allow case
+Six of the nine decisions are reached by Ratify verification: the allow case
 returns `authorized_agent`, the exceeded-limit and wrong-resource cases return
-`constraint_denied`, and the expired and revoked cases return their matching
-statuses. Those five demonstrate the signed delegation and its constraints.
+`constraint_denied`, the expired and revoked cases return their matching
+statuses, and the copied-certificate case returns `invalid`. Those six
+demonstrate the signed delegation, its constraints, and its binding to one
+agent key.
 
 The remaining three demonstrate receiver-owned binding rather than the
 protocol. The altered-operation and replay cases are stopped by the
@@ -34,6 +37,14 @@ presented agent against the agent the challenge was issued for, before
 verification runs. The bundle would also fail verification, but the recorded
 denial comes from the precheck, and this table says so rather than implying a
 cryptographic result the run did not reach.
+
+The copied-certificate case exists for that reason. It presents the genuine
+delegation, correctly signed by the principal and naming the authorized agent,
+while signing the challenge with a key the presenter does not own. The subject
+precheck passes because the bundle names the right agent, so Ratify
+verification is the layer that rejects it. That is the recorded demonstration
+that holding a copy of the certificate is not the same as holding the
+authority.
 
 The replay case deliberately performs one valid setup use and then resubmits
 the consumed proof reference. The recorded result describes the second,
