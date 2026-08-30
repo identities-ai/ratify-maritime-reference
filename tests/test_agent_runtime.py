@@ -23,6 +23,7 @@ from maritime_ratify.agent_runtime import (
     create_agent_app,
     run_scenario,
     _model,
+    _SECONDARY_SCENARIOS,
 )
 from maritime_ratify.deployment_issuance import issue_deployment
 import maritime_ratify.agent_runtime as runtime_module
@@ -172,6 +173,7 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
         presentation_url=f"http://127.0.0.1:{port}/presentations",
         receiver_token=settings.receiver_token,
         demo_token=settings.demo_token,
+        supported_scenarios=settings.supported_scenarios,
         model_mode="deterministic",
         model_id=None,
     )
@@ -242,6 +244,7 @@ async def _exercise_real_agent_boundary():
             presentation_url=f"http://127.0.0.1:{port}/presentations",
             receiver_token="agent-token",
             demo_token="demo-token",
+            supported_scenarios=frozenset({"allow", "over_limit"}),
             model_mode="deterministic",
             model_id=None,
         )
@@ -368,3 +371,116 @@ def _unused_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+def test_runtime_isolation_across_two_agent_runtimes(tmp_path, monkeypatch):
+    asyncio.run(_exercise_runtime_isolation(tmp_path, monkeypatch))
+
+
+def _settings_from(issuance, env_name, delegation, authorities, monkeypatch):
+    for name, value in dict(
+        line.split("=", 1)
+        for line in (issuance / env_name).read_text().splitlines()
+    ).items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("RATIFY_DELEGATION_PATH", str(issuance / delegation))
+    monkeypatch.setenv("RATIFY_SCENARIO_AUTHORITIES_PATH", str(issuance / authorities))
+    monkeypatch.setenv("RATIFY_RECEIVER_MCP_URL", "unused")
+    monkeypatch.setenv("RATIFY_PRESENTATION_URL", "unused")
+    return AgentSettings.from_environment()
+
+
+async def _exercise_runtime_isolation(tmp_path, monkeypatch):
+    """Two separately delegated runtimes against one receiver.
+
+    Neither runtime holds the other's private key. The second runtime carries
+    the first runtime's public certificate, which is what an operator of that
+    runtime could actually obtain.
+    """
+    issuance = tmp_path / "issuance"
+    issue_deployment(issuance, now=int(time.time()))
+    receiver_env = dict(
+        line.split("=", 1)
+        for line in (issuance / "receiver.env").read_text().splitlines()
+    )
+    primary = _settings_from(
+        issuance, "agent.env", "delegation.json",
+        "scenario-authorities.json", monkeypatch,
+    )
+    secondary = _settings_from(
+        issuance, "agent-b.env", "delegation-b.json",
+        "scenario-authorities-b.json", monkeypatch,
+    )
+    assert secondary.supported_scenarios == _SECONDARY_SCENARIOS
+    assert secondary.authority.agent_id != primary.authority.agent_id
+
+    receiver = WorkOrderReceiver(
+        trusted_root_id=primary.authority.root_id,
+        trusted_root_public_key=primary.authority.root_public_key,
+    )
+    port = _unused_port()
+    app = create_receiver_app(
+        receiver=receiver,
+        authenticator=CallerAuthenticator({
+            primary.receiver_token: receiver_env["RATIFY_CALLER_ID_PRIMARY"],
+            secondary.receiver_token: receiver_env["RATIFY_CALLER_ID_SECONDARY"],
+        }),
+        presentations=PresentationRegistry(),
+        caller_subjects={
+            receiver_env["RATIFY_CALLER_ID_PRIMARY"]: primary.authority.agent_id,
+            receiver_env["RATIFY_CALLER_ID_SECONDARY"]: secondary.authority.agent_id,
+        },
+        allowed_hosts=[f"127.0.0.1:{port}"],
+    )
+    server = uvicorn.Server(uvicorn.Config(
+        app, host="127.0.0.1", port=port, log_level="error"
+    ))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        await asyncio.sleep(0.01)
+    assert server.started
+
+    def connected(settings):
+        return AgentSettings(
+            authority=settings.authority,
+            scenario_authorities=settings.scenario_authorities,
+            supported_scenarios=settings.supported_scenarios,
+            receiver_mcp_url=f"http://127.0.0.1:{port}/mcp/",
+            presentation_url=f"http://127.0.0.1:{port}/presentations",
+            receiver_token=settings.receiver_token,
+            demo_token=settings.demo_token,
+            model_mode="deterministic",
+            model_id=None,
+        )
+
+    contract = json.loads(
+        (Path(__file__).resolve().parents[1] / "docs"
+         / "runtime-isolation-expectations.json").read_text(encoding="utf-8")
+    )["attempts"]
+    runtimes = {"primary": connected(primary), "secondary": connected(secondary)}
+    try:
+        for name, required in contract.items():
+            result = await run_scenario(
+                runtimes[required["runtime"]], required["scenario"]
+            )
+            assert (
+                result["decision"],
+                result["reason"],
+                result["handler_invoked"],
+                result["decided_by"],
+                result["verification_status"],
+            ) == (
+                required["decision"],
+                required["reason"],
+                required["handler_invoked"],
+                required["decided_by"],
+                required["verification_status"],
+            ), name
+        # Exactly the two in-bounds attempts reached protected code.
+        assert receiver.handler_invocations == 2
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
