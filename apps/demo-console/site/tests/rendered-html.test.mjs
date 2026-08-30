@@ -32,6 +32,9 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /WRONG AGENT/);
   assert.match(html, /COPIED CERTIFICATE/);
   assert.match(html, /deterministic tool-call harness/);
+  assert.match(html, /Runtime isolation check/);
+  assert.match(html, /Agent B with its own authority/);
+  assert.match(html, /Agent B presents Agent A/);
   assert.match(html, /What authority does this agent carry/);
   assert.match(html, /custom:work_order:create/);
   assert.match(html, /Seattle warehouse 01/);

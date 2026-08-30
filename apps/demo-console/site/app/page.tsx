@@ -22,6 +22,7 @@ type Scenario =
   | "replay"
   | "wrong_agent"
   | "copied_certificate";
+type IsolationScenario = "isolation_own" | "isolation_wrong_site" | "isolation_borrowed_certificate";
 
 const scenarios: {
   id: Scenario;
@@ -73,16 +74,22 @@ const deciderLabels: Record<string, string> = {
   proof_carrier: "Proof-carrier binding",
   receiver_error: "Receiver fault, failed closed",
 };
+const isolationScenarios: { id: IsolationScenario; title: string; detail: string; expectedDecision: "ALLOW" | "DENY"; expectedReason: string }[] = [
+  { id: "isolation_own", title: "Agent B with its own authority", detail: "Portland site, $200 bound, separate Maritime runtime.", expectedDecision: "ALLOW", expectedReason: "ALLOW" },
+  { id: "isolation_wrong_site", title: "Agent B requests Agent A's site", detail: "A legitimately authorized agent cannot cross its tenant boundary.", expectedDecision: "DENY", expectedReason: "DENY_RESOURCE_MISMATCH" },
+  { id: "isolation_borrowed_certificate", title: "Agent B presents Agent A's certificate", detail: "A genuine certificate cannot be used without the matching private key.", expectedDecision: "DENY", expectedReason: "DENY_VERIFICATION_FAILED" },
+];
 
 export default function Home() {
   const [pending, setPending] = useState<Scenario | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [results, setResults] = useState<Partial<Record<Scenario, Result>>>({});
+  const [isolationResults, setIsolationResults] = useState<Partial<Record<IsolationScenario, Result>>>({});
   const [runningSuite, setRunningSuite] = useState(false);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
 
-  async function execute(scenario: Scenario): Promise<Result | null> {
+  async function execute(scenario: Scenario | IsolationScenario, target: "adversarial" | "isolation" = "adversarial"): Promise<Result | null> {
     setPending(scenario);
     setProgress(0);
     setError(null);
@@ -108,7 +115,8 @@ export default function Home() {
       if (!response.ok) throw new Error();
       const executed = await response.json() as Result;
       setResult(executed);
-      setResults((current) => ({ ...current, [scenario]: executed }));
+      if (target === "isolation") setIsolationResults((current) => ({ ...current, [scenario as IsolationScenario]: executed }));
+      else setResults((current) => ({ ...current, [scenario as Scenario]: executed }));
       return executed;
     } catch {
       setError({
@@ -125,6 +133,10 @@ export default function Home() {
   async function run(scenario: Scenario) {
     setResults({});
     await execute(scenario);
+  }
+
+  async function runIsolation(scenario: IsolationScenario) {
+    await execute(scenario, "isolation");
   }
 
   async function runAll() {
@@ -244,6 +256,12 @@ export default function Home() {
           </ol>
           <p>Every row is populated from a request executed against the deployed Maritime agent and receiver. No outcome is prefilled.</p>
         </section>}
+
+        <section className="isolation-check" aria-labelledby="isolation-title">
+          <div className="isolation-heading"><p className="kicker">MARITIME RUNTIME ISOLATION</p><h3 id="isolation-title">Runtime isolation check</h3><p>Agent B runs the same image in a separate Maritime runtime with Portland authority capped at $200. These checks are separate from the nine-case adversarial gate.</p></div>
+          <div className="isolation-grid">{isolationScenarios.map((scenario) => { const executed = isolationResults[scenario.id]; const passes = executed?.decision === scenario.expectedDecision && executed.reason === scenario.expectedReason && executed.handler_invoked === (scenario.expectedDecision === "ALLOW"); return <button key={scenario.id} onClick={() => runIsolation(scenario.id)} disabled={pending !== null || runningSuite} className={executed ? (passes ? "scenario-pass" : "scenario-fail") : ""}><strong>{scenario.title}</strong><span className="scenario-detail">{scenario.detail}</span><span className="button-action">{pending === scenario.id ? "Running…" : executed ? `${executed.reason} · ${passes ? "PASS" : "CHECK"}` : "Run check →"}</span></button>; })}</div>
+          <p className="isolation-note">The two runtimes use byte-identical agent images but different subjects, credentials, and bounds. Results are live responses; no row is prefilled.</p>
+        </section>
 
         {(pending || result || error) && <div className="execution" aria-live="polite">
           <div className="stages" aria-label="Executed request stages">
