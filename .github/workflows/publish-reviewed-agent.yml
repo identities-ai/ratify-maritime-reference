@@ -8,10 +8,10 @@ permissions:
   packages: write
 
 env:
-  SOURCE_REVISION: 686d21b0812e0aeb8d526d92ec653f295b847932
+  SOURCE_REVISION: f3c58b47e9a3200e9e178553cefae57b714c9477
   DELEGATION_SHA256: ae7e30be57e537fd5aa9c6082dc10289ac79565e21f1dd55a148d9ba4a86d832
   SCENARIO_AUTHORITIES_SHA256: 9a5eb60b368075b7fd9f77722ca4bc03895d8bd64e0d1595a9549ea106348361
-  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:686d21b
+  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:f3c58b4
 
 jobs:
   publish:
