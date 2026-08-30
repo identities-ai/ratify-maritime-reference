@@ -44,10 +44,13 @@ from .profile import (
     DEFAULT_CATEGORY,
     DEFAULT_CURRENCY,
     DEFAULT_RESOURCE,
+    SECOND_RESOURCE,
 )
 from .transport import CallerAuthenticator, CarrierDenied
 
-_SCENARIOS = {
+# One image serves both runtimes. Which scenarios a runtime can execute is
+# decided by the authority injected into it, not by a build flag.
+_PRIMARY_SCENARIOS = frozenset({
     "allow",
     "over_limit",
     "wrong_resource",
@@ -57,7 +60,13 @@ _SCENARIOS = {
     "replay",
     "wrong_agent",
     "copied_certificate",
-}
+})
+_SECONDARY_SCENARIOS = frozenset({
+    "isolation_own",
+    "isolation_wrong_site",
+    "isolation_borrowed_subject",
+    "isolation_borrowed_certificate",
+})
 _CHAT_RATE_LIMIT = 30
 _CHAT_RATE_WINDOW_SECONDS = 60
 _DEMO_TOKEN_HEADER = b"x-ratify-demo-token"
@@ -67,6 +76,7 @@ _DEMO_TOKEN_HEADER = b"x-ratify-demo-token"
 class AgentSettings:
     authority: AuthorityFixture = field(repr=False)
     scenario_authorities: dict[str, AuthorityFixture] = field(repr=False)
+    supported_scenarios: frozenset[str]
     receiver_mcp_url: str
     presentation_url: str
     receiver_token: str = field(repr=False)
@@ -106,10 +116,11 @@ class AgentSettings:
         if hmac.compare_digest(receiver_token, demo_token):
             raise RuntimeError("RATIFY_DEMO_TOKEN must differ from RATIFY_RECEIVER_TOKEN")
         authority = _authority_fixture(delegation, private_key)
-        scenario_authorities = _scenario_authorities(authority)
+        scenario_authorities, supported = _scenario_configuration(authority)
         return cls(
             authority=authority,
             scenario_authorities=scenario_authorities,
+            supported_scenarios=supported,
             receiver_mcp_url=_required("RATIFY_RECEIVER_MCP_URL"),
             presentation_url=_required("RATIFY_PRESENTATION_URL"),
             receiver_token=receiver_token,
@@ -193,7 +204,7 @@ def create_agent_app(settings: AgentSettings) -> Starlette:
             scenario = payload.get("message")
             if type(scenario) is not str:
                 raise ValueError
-            if scenario not in _SCENARIOS:
+            if scenario not in settings.supported_scenarios:
                 return JSONResponse(
                     {"response": "Unsupported demo scenario."}, status_code=400
                 )
@@ -338,7 +349,13 @@ def _scenario_arguments(scenario: str) -> dict[str, Any]:
     if scenario == "over_limit":
         arguments["amount_minor"] = 50_100
     elif scenario == "wrong_resource":
-        arguments["resource"] = "site:warehouse-portland-01"
+        arguments["resource"] = SECOND_RESOURCE
+    elif scenario == "isolation_own":
+        arguments["resource"] = SECOND_RESOURCE
+        arguments["amount_minor"] = 15_000
+        arguments["description"] = "Inspect Portland loading-bay lighting"
+    elif scenario == "isolation_wrong_site":
+        arguments["amount_minor"] = 15_000
     return arguments
 
 
@@ -375,15 +392,22 @@ def _authority_fixture(delegation, private_key: HybridPrivateKey) -> AuthorityFi
     )
 
 
-def _scenario_authorities(
+def _scenario_configuration(
     primary: AuthorityFixture,
-) -> dict[str, AuthorityFixture]:
+) -> tuple[dict[str, AuthorityFixture], frozenset[str]]:
+    """Derive this runtime's role from the authority material it was given."""
     path = os.environ.get("RATIFY_SCENARIO_AUTHORITIES_PATH")
     if not path:
-        return {}
+        return {}, _PRIMARY_SCENARIOS
     try:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        if type(payload) is not dict or set(payload) != {
+        if type(payload) is not dict:
+            raise ValueError
+        if set(payload) == {"peer_delegation"}:
+            return _peer_authorities(primary, payload["peer_delegation"]), (
+                _SECONDARY_SCENARIOS
+            )
+        if set(payload) != {
             "expired", "revoked", "wrong_agent",
             "wrong_agent_fixture_private_key",
         }:
@@ -424,9 +448,49 @@ def _scenario_authorities(
             for authority in authorities.values()
         ):
             raise ValueError
-        return authorities
+        return authorities, _PRIMARY_SCENARIOS
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise RuntimeError("invalid deployment scenario authorities") from None
+
+
+def _peer_authorities(
+    primary: AuthorityFixture, peer_wire: object
+) -> dict[str, AuthorityFixture]:
+    """Cross-runtime attempts built from a peer's public certificate alone.
+
+    This runtime holds the other runtime's delegation, which is public, and
+    never its private key. Both attempts are therefore what an operator of this
+    runtime could actually mount.
+    """
+    if type(peer_wire) is not str:
+        raise ValueError
+    peer = decode_delegation_cert(peer_wire)
+    if peer.issuer_id != primary.root_id or (
+        peer.issuer_pub_key != primary.root_public_key
+    ):
+        raise ValueError
+    if peer.subject_id == primary.agent_id:
+        raise ValueError
+    return {
+        # Declaring the peer's subject. The receiver issued its challenge for
+        # this runtime's subject, so the precheck refuses it.
+        "isolation_borrowed_subject": AuthorityFixture(
+            primary.root_id,
+            primary.root_public_key,
+            peer.subject_id,
+            primary.agent_private_key,
+            peer,
+        ),
+        # Declaring this runtime's own subject while presenting the peer's
+        # certificate. The precheck passes and verification refuses it.
+        "isolation_borrowed_certificate": AuthorityFixture(
+            primary.root_id,
+            primary.root_public_key,
+            primary.agent_id,
+            primary.agent_private_key,
+            peer,
+        ),
+    }
 
 
 def _tool_decision(messages: list[BaseMessage]) -> dict[str, Any]:
