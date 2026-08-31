@@ -100,3 +100,12 @@ jobs:
           test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'X-Ratify-Labs-Route: Bearer wrong-token' "$check_url")" = 404
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$check_url")" = 404
           echo "production candidate serves $EXPECTED_SCRIPT and rejects unauthenticated requests"
+
+      - name: Verify deployed assets serve bytes
+        working-directory: apps/demo-console/site
+        env:
+          MARITIME_CONSOLE_ROUTER_TOKEN: ${{ secrets.MARITIME_CONSOLE_ROUTER_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-deployed-assets.mjs \
+            "https://$WORKER_HOSTNAME" "$MARITIME_CONSOLE_ROUTER_TOKEN"
