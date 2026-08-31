@@ -136,3 +136,33 @@ def test_acceptance_gate_detects_stale_evidence(monkeypatch, tmp_path):
     status, detail = gate._evidence_is_current()
     assert status == "FAIL"
     assert "does not default to the deployed agent image" in detail
+
+
+def test_live_gate_checks_are_built_from_the_recorded_deployment():
+    """The live gates must target the deployment the evidence describes.
+
+    Hardcoding the arguments would let the gate pass against a deployment the
+    published evidence no longer describes, which is the drift this repository
+    keeps finding.
+    """
+    gate = _load("run_acceptance_gate")
+    isolation = json.loads(
+        (SCRIPTS.parent / "evidence" / "runtime-isolation-results.json")
+        .read_text(encoding="utf-8")
+    )["deployment"]
+    checks = gate._live_gate_checks()
+
+    assert [c.name for c in checks] == [
+        "Live adversarial gate", "Live runtime isolation gate"
+    ]
+    assert all(c.live for c in checks)
+    arguments = checks[1].command
+    for value in (
+        isolation["primary_runtime_id"], isolation["secondary_runtime_id"],
+        isolation["receiver_runtime_id"], isolation["agent_image"],
+        isolation["worker_version"],
+    ):
+        assert value in arguments
+    # Results go to scratch, never over the published artifacts.
+    assert any(".acceptance" in part for part in arguments)
+    assert not any("evidence/" in part for part in arguments)

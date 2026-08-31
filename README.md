@@ -55,7 +55,20 @@ It runs both test suites, the console build and lint, the proxy typecheck, the
 deployed-asset check, and the local reproduction, then verifies that the
 recorded evidence still carries its own limits and reproduces the deployment it
 describes. `--offline` skips the checks that contact the deployment;
-`--skip-reproduction` skips the slowest one.
+`--skip-reproduction` skips the slowest one; `--evidence-only` checks the
+recorded evidence with no toolchain required.
+
+After renewing deployment authority, or after any redeploy, add `--live-gates`:
+
+```bash
+python3 scripts/run_acceptance_gate.py --live-gates
+```
+
+That re-executes both deployed gates against the deployment the committed
+evidence describes, using its recorded arguments. It is the check that catches
+a renewal mistake, because the tests and the local reproduction both use fresh
+material issued on the spot and would not notice one. Its results are written
+under `.acceptance/` and never over the published artifacts.
 
 To reproduce the same nine results from the published images, without a
 repository install, a Ratify credential, or any call to the live deployment:
