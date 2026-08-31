@@ -8,6 +8,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -50,6 +51,11 @@ DISCLOSURES = {
     "evidence_sha256": (
         "Integrity checksum over this file's canonical form. It is not a "
         "signature and it does not attest that the recorded execution occurred."
+    ),
+    "transient_failures": (
+        "A recorded transient_proxy_failures count means the deployment stalled "
+        "beyond the proxy budget for that scenario and it was retried. Any "
+        "decision the receiver returned is final and was never retried."
     ),
     "model": (
         "Deterministic tool-call harness. Scenarios are enumerated rather than "
@@ -126,15 +132,31 @@ def _verify_image_identity(
     return "observed", observed
 
 
-def _execute(endpoint: str, origin: str, scenario: str) -> dict[str, object]:
-    response = httpx.post(
-        endpoint,
-        headers={"Content-Type": "application/json", "Origin": origin},
-        json={"scenario": scenario},
-        timeout=45,
-    )
-    response.raise_for_status()
-    return response.json()
+def _execute(
+    endpoint: str, origin: str, scenario: str, attempts: int = 3
+) -> tuple[dict[str, object], int]:
+    """Execute one scenario, retrying only a proxy-level transient failure.
+
+    The deployment intermittently stalls beyond the proxy's budget, including on
+    traffic that performs no verification work. That is a recorded platform
+    property rather than an authorization result, so a 502 is retried and the
+    count is kept. Any decision the receiver returns is final and never retried.
+    """
+    transient = 0
+    for remaining in range(attempts - 1, -1, -1):
+        response = httpx.post(
+            endpoint,
+            headers={"Content-Type": "application/json", "Origin": origin},
+            json={"scenario": scenario},
+            timeout=90,
+        )
+        if response.status_code == 502 and remaining:
+            transient += 1
+            time.sleep(15)
+            continue
+        response.raise_for_status()
+        return response.json(), transient
+    raise httpx.HTTPError("scenario did not return a decision")
 
 
 def main() -> int:
@@ -181,7 +203,7 @@ def main() -> int:
     failures = []
     try:
         for scenario, expected in EXPECTED.items():
-            result = _execute(args.endpoint, args.origin, scenario)
+            result, transient = _execute(args.endpoint, args.origin, scenario)
             observed = (
                 result.get("decision"),
                 result.get("reason"),
@@ -196,7 +218,12 @@ def main() -> int:
                     "expected": expected,
                     "observed": observed,
                 })
-            results.append({"scenario": scenario, "passed": passed, **result})
+            results.append({
+                "scenario": scenario,
+                "passed": passed,
+                "transient_proxy_failures": transient,
+                **result,
+            })
     except (httpx.HTTPError, json.JSONDecodeError) as exc:
         print(f"gate execution failed: {exc}", file=sys.stderr)
         return 2
