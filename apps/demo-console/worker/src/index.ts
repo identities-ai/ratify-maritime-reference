@@ -203,6 +203,12 @@ export async function handleRequest(
   }
 
   try {
+    // Measured around the upstream call the proxy actually makes. Paired with
+    // the browser's own total it separates runtime time from edge overhead,
+    // which is what makes an occasional 25 second wait legible. It is the only
+    // internal timing the proxy can report without the agent or receiver
+    // emitting events of their own.
+    const upstreamStarted = Date.now();
     const agent = await fetchAgent(`${agentUrl}/chat`, {
       method: "POST",
       headers: {
@@ -212,6 +218,7 @@ export async function handleRequest(
       body: JSON.stringify({ message: scenario }),
       signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
     });
+    const upstreamMs = Date.now() - upstreamStarted;
     if (!agent.ok) throw new Error();
     const payload: unknown = await agent.json();
     if (typeof payload !== "object" || payload === null) throw new Error();
@@ -242,6 +249,7 @@ export async function handleRequest(
     }
     return reply({
       correlation_id: crypto.randomUUID(),
+      upstream_duration_ms: upstreamMs,
       scenario,
       decision: value.decision,
       reason: value.reason,
