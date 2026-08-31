@@ -90,15 +90,16 @@ class AgentSettings:
         delegation_path = os.environ.get("RATIFY_DELEGATION_PATH")
         try:
             if delegation_path:
-                with open(delegation_path, encoding="utf-8") as stream:
-                    delegation_wire = stream.read().strip()
+                delegation_wire = _read_verified(
+                    delegation_path, "RATIFY_DELEGATION_SHA256"
+                ).strip()
             else:
+                _reject_digest_without_path("RATIFY_DELEGATION_SHA256")
                 delegation_wire = base64.b64decode(
                     _required("RATIFY_DELEGATION_B64"), validate=True
                 ).decode("utf-8")
         except (OSError, ValueError, UnicodeDecodeError):
             raise RuntimeError("invalid deployment delegation") from None
-        _verify_file_digest(delegation_path, "RATIFY_DELEGATION_SHA256")
         delegation = decode_delegation_cert(delegation_wire)
         private_key = HybridPrivateKey(
             ed25519=_private_key("RATIFY_AGENT_ED25519_PRIVATE_B64", 32),
@@ -118,10 +119,6 @@ class AgentSettings:
         if hmac.compare_digest(receiver_token, demo_token):
             raise RuntimeError("RATIFY_DEMO_TOKEN must differ from RATIFY_RECEIVER_TOKEN")
         authority = _authority_fixture(delegation, private_key)
-        _verify_file_digest(
-            os.environ.get("RATIFY_SCENARIO_AUTHORITIES_PATH"),
-            "RATIFY_SCENARIO_AUTHORITIES_SHA256",
-        )
         scenario_authorities, supported = _scenario_configuration(authority)
         return cls(
             authority=authority,
@@ -136,23 +133,31 @@ class AgentSettings:
         )
 
 
-def _verify_file_digest(path: str | None, variable: str) -> None:
-    """Verify a volume-mounted artifact when an operator supplies its digest.
+def _read_verified(path: str, variable: str) -> str:
+    """Read a volume-mounted artifact and verify the bytes actually returned.
 
-    The check is optional for backwards-compatible image deployments. It makes
-    file-API rotation fail closed when the expected SHA-256 is configured.
+    The artifact is read exactly once and the digest is taken over those bytes.
+    Reading a second time to hash would leave a window where the file changes
+    between the two reads, so the runtime would validate content it is not
+    using. That window is the whole point of the check, because the artifact is
+    expected to be rewritten in place during rotation.
+
+    The check is optional, so an image that carries reviewed material and sets
+    no expected digest keeps working unchanged.
     """
+    contents = Path(path).read_bytes()
     expected = os.environ.get(variable)
-    if not expected:
-        return
-    if not path:
+    if expected:
+        digest = hashlib.sha256(contents).hexdigest()
+        if not hmac.compare_digest(digest, expected.strip().lower()):
+            raise RuntimeError(f"artifact digest mismatch for {variable}")
+    return contents.decode("utf-8")
+
+
+def _reject_digest_without_path(variable: str) -> None:
+    """An expected digest with nothing to hash must fail rather than pass."""
+    if os.environ.get(variable):
         raise RuntimeError(f"{variable} requires a file path")
-    try:
-        digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    except OSError:
-        raise RuntimeError(f"unable to read artifact for {variable}") from None
-    if not hmac.compare_digest(digest, expected.lower()):
-        raise RuntimeError(f"artifact digest mismatch for {variable}")
 
 
 class _RateLimiter:
@@ -429,9 +434,12 @@ def _scenario_configuration(
     """Derive this runtime's role from the authority material it was given."""
     path = os.environ.get("RATIFY_SCENARIO_AUTHORITIES_PATH")
     if not path:
+        _reject_digest_without_path("RATIFY_SCENARIO_AUTHORITIES_SHA256")
         return {}, _PRIMARY_SCENARIOS
     try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        payload = json.loads(
+            _read_verified(path, "RATIFY_SCENARIO_AUTHORITIES_SHA256")
+        )
         if type(payload) is not dict:
             raise ValueError
         if set(payload) == {"peer_delegation"}:

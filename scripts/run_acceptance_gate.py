@@ -128,11 +128,23 @@ def main() -> int:
         help="Skip the checks that contact the deployment or a registry.",
     )
     parser.add_argument(
+        "--evidence-only",
+        action="store_true",
+        help="Check only the recorded evidence, with no toolchain required.",
+    )
+    parser.add_argument(
         "--skip-reproduction",
         action="store_true",
         help="Skip the Docker reproduction, which is the slowest check.",
     )
     arguments = parser.parse_args()
+
+    if arguments.evidence_only:
+        status, detail = _evidence_is_current()
+        print(f"  {status:<12}Recorded evidence is complete")
+        if detail:
+            print(f"               {detail}")
+        return 0 if status == "pass" else 1
 
     selected = [
         check for check in CHECKS
