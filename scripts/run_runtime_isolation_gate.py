@@ -29,11 +29,10 @@ COMPARED = ("decision", "reason", "handler_invoked", "decided_by", "verification
 
 DISCLOSURES = {
     "runtime_identity": (
-        "Runtime identifiers are supplied by the operator. They are not "
-        "observable in a response and Maritime has not attested them. The image "
-        "digest is checked against the source revision the public registry "
-        "records for it."
+        "Runtime identifiers are supplied by the operator and are not "
+        "observable in a response."
     ),
+    "image_binding": 'A digest cannot bind a running Maritime runtime to an image. Maritime converts an image to a root filesystem before boot and performs no digest verification at launch, and it records a manifest digest only for images it builds itself. The digest here binds our published build to its source revision in the public registry, which is a claim about the registry and not about the runtime. Maritime can attest the runtime identifiers and the image reference each runtime launched from; maritime_attestation records that confirmation when it has been given, and is null until then.',
     "transient_failures": (
         "A recorded transient_proxy_failures count means the deployment stalled "
         "beyond the proxy budget for that attempt and it was retried. Any "
@@ -151,6 +150,13 @@ def main() -> int:
     parser.add_argument("--primary-agent-subject", required=True)
     parser.add_argument("--secondary-agent-subject", required=True)
     parser.add_argument("--worker-version", required=True)
+    parser.add_argument(
+        "--maritime-attestation",
+        default=None,
+        help="Reference for a Maritime confirmation of the runtime identifiers "
+             "and launched image reference, once given. Left unset the artifact "
+             "records that no such confirmation exists.",
+    )
     parser.add_argument("--interval", type=float, default=8.0)
     arguments = parser.parse_args()
 
@@ -241,6 +247,7 @@ def main() -> int:
             "secondary_agent_subject": arguments.secondary_agent_subject,
             "worker_version": arguments.worker_version,
             "runtimes_share_one_image": True,
+            "maritime_attestation": args.maritime_attestation,
             **identity,
         },
         "passed": not failures and len(attempts) == len(expectations),

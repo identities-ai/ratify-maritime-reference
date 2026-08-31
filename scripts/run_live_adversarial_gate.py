@@ -44,8 +44,9 @@ DISCLOSURES = {
         "Each image digest is checked against the source revision the public "
         "registry records for it, so that pairing is observed rather than "
         "asserted. That the live deployment runs these digests remains "
-        "operator-asserted and is not attested by Maritime."
+        "operator-asserted."
     ),
+    "image_binding": 'A digest cannot bind a running Maritime runtime to an image. Maritime converts an image to a root filesystem before boot and performs no digest verification at launch, and it records a manifest digest only for images it builds itself. The digest here binds our published build to its source revision in the public registry, which is a claim about the registry and not about the runtime. Maritime can attest the runtime identifiers and the image reference each runtime launched from; maritime_attestation records that confirmation when it has been given, and is null until then.',
     "evidence_sha256": (
         "Integrity checksum over this file's canonical form. It is not a "
         "signature and it does not attest that the recorded execution occurred."
@@ -151,6 +152,13 @@ def main() -> int:
     parser.add_argument("--receiver-source-revision", required=True)
     parser.add_argument("--receiver-image", required=True)
     parser.add_argument("--worker-version", required=True)
+    parser.add_argument(
+        "--maritime-attestation",
+        default=None,
+        help="Reference for a Maritime confirmation of the runtime identifiers "
+             "and launched image reference, once given. Left unset the artifact "
+             "records that no such confirmation exists.",
+    )
     args = parser.parse_args()
 
     identity = {}
@@ -205,6 +213,7 @@ def main() -> int:
             "receiver_source_revision": args.receiver_source_revision,
             "receiver_image": args.receiver_image,
             "worker_version": args.worker_version,
+            "maritime_attestation": args.maritime_attestation,
             **identity,
         },
         "claim": "one allow plus eight distinct receiver denials",
