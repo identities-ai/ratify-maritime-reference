@@ -101,3 +101,26 @@ test("serves the provider hostname only through the Labs router", async () => {
   assert.equal(routed.status, 200);
 
 });
+
+test("every asset the page references is built with real content", async () => {
+  // A missing asset under the base path is served as an empty 200 rather than
+  // a 404, so checking status alone reports success while the image is blank.
+  // This asserts the bytes exist in the build output.
+  const html = await (await render()).text();
+  const referenced = [...html.matchAll(/(?:src|href)="(\/maritime\/[^"]+)"/g)]
+    .map((match) => match[1]);
+  const assets = [...new Set(referenced)];
+  assert.ok(assets.length > 0, "the page referenced no assets");
+  assert.ok(
+    assets.some((asset) => asset.endsWith(".png")),
+    "the page referenced no image, so the logo would go unchecked",
+  );
+  for (const asset of assets) {
+    const file = new URL(
+      `../dist/client${asset}`, import.meta.url,
+    );
+    const contents = await readFile(file).catch(() => null);
+    assert.ok(contents, `missing build output for ${asset}`);
+    assert.ok(contents.length > 0, `empty build output for ${asset}`);
+  }
+});
