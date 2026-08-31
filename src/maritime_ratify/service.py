@@ -124,6 +124,7 @@ def create_receiver_app(
                 "reason": error.reason,
                 "decided_by": "proof_carrier",
                 "verification_status": None,
+                "verification_duration_ms": None,
                 "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }
@@ -133,6 +134,7 @@ def create_receiver_app(
                 "reason": "DENY_VERIFIER_UNAVAILABLE",
                 "decided_by": "receiver_error",
                 "verification_status": None,
+                "verification_duration_ms": None,
                 "handler_invoked": False,
                 "handler_invocations": receiver.handler_invocations,
             }

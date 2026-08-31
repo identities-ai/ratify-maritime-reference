@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+import time
 from typing import Any
 
 import httpx
@@ -46,6 +47,11 @@ class AuthorityInterceptor:
         self._presentation_uploader = presentation_uploader
         self._dispatch_transform = dispatch_transform
         self._replay_dispatch = replay_dispatch
+        # Spans this interceptor actually observed on the most recent call.
+        # Proof construction is our own cryptography; the rest are round trips
+        # that cross the platform, which is what separates our cost from the
+        # deployment's.
+        self.timings: dict[str, int] = {}
 
     async def __call__(self, request: MCPToolCallRequest, handler):
         if request.name != WORK_ORDER_TOOL:
@@ -54,15 +60,26 @@ class AuthorityInterceptor:
             raise ValueError("DENY_INVALID_REQUEST")
         action = WorkOrder(scope=WORK_ORDER_SCOPE, **request.args)
         action.validate()
+        spans: dict[str, int] = {}
+        started = time.perf_counter()
+
+        def mark(name: str, since: float) -> float:
+            now = time.perf_counter()
+            spans[name] = round((now - since) * 1000)
+            return now
+
+        mark_from = started
         challenge = await self._challenge_provider(dict(request.args))
+        mark_from = mark("challenge_duration_ms", mark_from)
         proof = self._authority.present(
             challenge=challenge.challenge,
             session_context=challenge.session_context,
             now=self._clock(),
         )
-        reference = await self._presentation_uploader(
-            action, encode_proof_bundle(proof)
-        )
+        encoded = encode_proof_bundle(proof)
+        mark_from = mark("proof_build_duration_ms", mark_from)
+        reference = await self._presentation_uploader(action, encoded)
+        mark_from = mark("proof_upload_duration_ms", mark_from)
         headers = dict(request.headers or {})
         headers["X-Ratify-Proof-Reference"] = reference
         dispatched_args = {
@@ -77,6 +94,11 @@ class AuthorityInterceptor:
             dispatched_args = self._dispatch_transform(dict(dispatched_args))
         dispatched = request.override(headers=headers, args=dispatched_args)
         result = await handler(dispatched)
+        mark("dispatch_duration_ms", mark_from)
+        spans["interceptor_duration_ms"] = round(
+            (time.perf_counter() - started) * 1000
+        )
+        self.timings = spans
         if self._replay_dispatch:
             return await handler(dispatched)
         return result

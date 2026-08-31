@@ -154,6 +154,7 @@ async def _exercise_dependency_failure():
         "reason": "DENY_VERIFIER_UNAVAILABLE",
         "decided_by": "receiver_error",
         "verification_status": None,
+        "verification_duration_ms": None,
         "handler_invoked": False,
         "handler_invocations": 0,
     }
