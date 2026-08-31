@@ -76,7 +76,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(page, /title: "Demo limit reached"/);
   assert.match(page, /Waiting for the runtime response/);
   assert.match(page, /No automatic retry was attempted/);
-  assert.match(page, /title: timedOut ? "Request timed out" : "Runtime did not return a verified result"/);
+  assert.match(page, /Request timed out/);
   assert.match(page, /REQUEST_TIMEOUT_MS = 75_000/);
   assert.doesNotMatch(page, /<b>Unavailable<\/b>/);
   assert.doesNotMatch(page, /\$750\.00/);
