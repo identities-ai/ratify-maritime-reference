@@ -90,7 +90,11 @@ jobs:
           set -euo pipefail
           base="https://$WORKER_HOSTNAME"
           html="$(curl -fsS -H "X-Ratify-Labs-Route: Bearer $MARITIME_CONSOLE_ROUTER_TOKEN" "$base/maritime")"
-          grep -Fq "$EXPECTED_SCRIPT" <<<"$html"
+          observed="$(grep -oE 'index-[A-Za-z0-9_-]+\.js' <<<"$html" | sort -u | tr '\n' ' ')"
+          grep -Fq "$EXPECTED_SCRIPT" <<<"$html" || {
+            echo "::error::staging HTML fingerprint mismatch; expected=$EXPECTED_SCRIPT observed=${observed:-none} bytes=${#html}"
+            exit 1
+          }
           test "$(curl -sS -o /dev/null -w '%{http_code}' -H "X-Ratify-Labs-Route: Bearer $MARITIME_CONSOLE_ROUTER_TOKEN" "$base/maritime")" = 200
           test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'X-Ratify-Labs-Route: Bearer wrong-token' "$base/maritime")" = 404
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$base/maritime")" = 404
