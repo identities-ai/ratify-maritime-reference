@@ -129,3 +129,16 @@ test("every asset the page references is built with real content", async () => {
     assert.ok(contents.length > 0, `empty build output for ${asset}`);
   }
 });
+
+test("every control shares one busy condition", async () => {
+  // The guided button checked three flags while the others checked two, so
+  // between scenarios in a guided run the rest of the page became clickable
+  // and a second request could start alongside the loop. Divergent conditions
+  // are the defect, so this asserts there is only one.
+  const source = await readFile(
+    new URL("../app/page.tsx", import.meta.url), "utf8",
+  );
+  const conditions = [...source.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]);
+  assert.ok(conditions.length >= 4, "expected the page to disable its controls");
+  assert.deepEqual([...new Set(conditions)], ["busy"]);
+});

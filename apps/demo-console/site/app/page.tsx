@@ -180,6 +180,12 @@ export default function Home() {
     setGuidedRunning(false);
   }
 
+  // One condition for every control. The guided button checked all three flags
+  // while the others checked two, so between scenarios in a guided run, where
+  // pending is briefly null, the rest of the page became clickable and a second
+  // request could start alongside the loop.
+  const busy = pending !== null || runningSuite || guidedRunning;
+
   const progressCopy = [
     ["Request submitted", "The browser is contacting the deployed Maritime runtime."],
     ["Waiting for the runtime response", "A sleeping runtime may need several seconds to become ready."],
@@ -240,12 +246,12 @@ export default function Home() {
 
         <div className="guided-card">
           <div><p className="kicker">START HERE</p><h2>See the claim in three requests</h2><p>Watch one allowed action, the same agent exceed its signed ceiling, and a second runtime fail when it presents a copied certificate.</p></div>
-          <button className="run-all" onClick={runGuided} disabled={pending !== null || runningSuite || guidedRunning}>{guidedRunning ? "Running guided proof…" : "Run guided proof"}</button>
+          <button className="run-all" onClick={runGuided} disabled={busy}>{guidedRunning ? "Running guided proof…" : "Run guided proof"}</button>
         </div>
 
         <div className="lab-head">
           <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus eight adversarial denials</h2></div>
-          <button className="run-all" onClick={runAll} disabled={pending !== null || runningSuite}>
+          <button className="run-all" onClick={runAll} disabled={busy}>
             {runningSuite ? `Running ${Object.keys(results).length + 1} of 9…` : "Run full adversarial gate →"}
           </button>
         </div>
@@ -256,7 +262,7 @@ export default function Home() {
             return <button
               key={scenario.id}
               onClick={() => run(scenario.id)}
-              disabled={pending !== null || runningSuite}
+              disabled={busy}
               className={executed ? (passed(scenario, executed) ? "scenario-pass" : "scenario-fail") : ""}
             >
               <span className="scenario-tag">{scenario.tag}</span>
@@ -292,7 +298,7 @@ export default function Home() {
 
         <section className="isolation-check" aria-labelledby="isolation-title">
           <div className="isolation-heading"><p className="kicker">MARITIME RUNTIME ISOLATION</p><h3 id="isolation-title">Runtime isolation check</h3><p>Agent B runs the same image in a separate Maritime runtime with Portland authority capped at $200. These checks are separate from the nine-case adversarial gate.</p></div>
-          <div className="isolation-grid">{isolationScenarios.map((scenario) => { const executed = isolationResults[scenario.id]; const passes = executed?.decision === scenario.expectedDecision && executed.reason === scenario.expectedReason && executed.handler_invoked === (scenario.expectedDecision === "ALLOW"); return <button key={scenario.id} onClick={() => runIsolation(scenario.id)} disabled={pending !== null || runningSuite} className={executed ? (passes ? "scenario-pass" : "scenario-fail") : ""}><strong>{scenario.title}</strong><span className="scenario-detail">{scenario.detail}</span><span className="button-action">{pending === scenario.id ? "Running…" : executed ? `${executed.reason} · ${passes ? "PASS" : "CHECK"}` : "Run check →"}</span></button>; })}</div>
+          <div className="isolation-grid">{isolationScenarios.map((scenario) => { const executed = isolationResults[scenario.id]; const passes = executed?.decision === scenario.expectedDecision && executed.reason === scenario.expectedReason && executed.handler_invoked === (scenario.expectedDecision === "ALLOW"); return <button key={scenario.id} onClick={() => runIsolation(scenario.id)} disabled={busy} className={executed ? (passes ? "scenario-pass" : "scenario-fail") : ""}><strong>{scenario.title}</strong><span className="scenario-detail">{scenario.detail}</span><span className="button-action">{pending === scenario.id ? "Running…" : executed ? `${executed.reason} · ${passes ? "PASS" : "CHECK"}` : "Run check →"}</span></button>; })}</div>
           <p className="isolation-note">The two runtimes use byte-identical agent images but different subjects, credentials, and bounds. Results are live responses; no row is prefilled.</p>
         </section>
 
