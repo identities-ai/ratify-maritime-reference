@@ -1,12 +1,12 @@
 {
   "schema": "ratify-maritime-adversarial-results/v1",
-  "executed_at": "2026-08-30T16:44:48.214940+00:00",
-  "source_revision": "0a0701d7c743e9380a4feaf6dd508df8ee96c8f8",
+  "executed_at": "2026-08-31T17:34:39.320720+00:00",
+  "source_revision": "332e3fa6b6eb1ba6b88b50f7718ad9ce1a39afc0",
   "endpoint": "https://maritime-api.ratifyprotocol.com/api/scenario",
   "origin": "https://labs.ratifyprotocol.com",
   "deployment": {
     "agent_source_revision": "347fd4dd0f9a5495c9d6531917322f9222ec470a",
-    "agent_image": "ghcr.io/identities-ai/ratify-maritime-agent@sha256:9d3397966eb549b109ee055512986680243a46a8d145e22c46551cda1fa69d1e",
+    "agent_image": "ghcr.io/identities-ai/ratify-maritime-agent@sha256:e933dc0d49b2ca154f8d89af7cb81c23dafdedc09a6d1b8fe32e015bfba0b4c5",
     "receiver_source_revision": "8846bcf4c706f00d10dcb0328b5e012dbb269f3d",
     "receiver_image": "ghcr.io/identities-ai/ratify-maritime-receiver@sha256:dbbef49f304ab682799137745c949b0bf07340725b07fc6a3d98177a9bb9c5e4",
     "worker_version": "a4576cdf-30b4-42ec-a7b4-e333a3b399d7",
@@ -27,7 +27,7 @@
     {
       "scenario": "allow",
       "passed": true,
-      "correlation_id": "764f7bf7-b232-4fa9-873e-dc0d0026278b",
+      "correlation_id": "f033b9cd-0bb3-4cfe-98d1-af472f223193",
       "decision": "ALLOW",
       "reason": "ALLOW",
       "decided_by": "ratify_verification",
@@ -45,14 +45,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:09.992Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:00.439Z"
     },
     {
       "scenario": "over_limit",
       "passed": true,
-      "correlation_id": "d21e9206-9788-40e6-9ba8-8aecc945d57c",
+      "correlation_id": "bedadc54-6a84-474f-ba57-2d40ada3949b",
       "decision": "DENY",
       "reason": "DENY_LIMIT_EXCEEDED",
       "decided_by": "ratify_verification",
@@ -70,14 +70,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:14.910Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:05.351Z"
     },
     {
       "scenario": "wrong_resource",
       "passed": true,
-      "correlation_id": "2dccc07c-53c9-4238-a433-2c1374b66b05",
+      "correlation_id": "dd7e2645-e2b1-489d-9e7d-164399ebbf70",
       "decision": "DENY",
       "reason": "DENY_RESOURCE_MISMATCH",
       "decided_by": "ratify_verification",
@@ -95,14 +95,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:19.374Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:10.000Z"
     },
     {
       "scenario": "altered_operation",
       "passed": true,
-      "correlation_id": "0f805b18-d9d2-4f60-94ba-9b3a33b00f46",
+      "correlation_id": "8ff13d35-f56e-4505-9659-ff4c4104baf7",
       "decision": "DENY",
       "reason": "DENY_OPERATION_MISMATCH",
       "decided_by": "proof_carrier",
@@ -120,14 +120,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:24.189Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:14.911Z"
     },
     {
       "scenario": "expired",
       "passed": true,
-      "correlation_id": "76ce25ee-c95d-4208-8994-ef300acd08b4",
+      "correlation_id": "a9949420-99e5-4f9e-98b2-4e172d330f78",
       "decision": "DENY",
       "reason": "DENY_EXPIRED",
       "decided_by": "ratify_verification",
@@ -145,14 +145,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1786898146,
-      "delegation_expires_at": 1787502946,
-      "timestamp": "2026-08-30T16:44:28.665Z"
+      "delegation_issued_at": 1786987059,
+      "delegation_expires_at": 1787591859,
+      "timestamp": "2026-08-31T17:34:19.596Z"
     },
     {
       "scenario": "revoked",
       "passed": true,
-      "correlation_id": "bf8a31de-7835-4ecf-9c54-100b1b110d3c",
+      "correlation_id": "ee8493cf-b69d-46cc-8050-a4182307b9ec",
       "decision": "DENY",
       "reason": "DENY_REVOKED",
       "decided_by": "ratify_verification",
@@ -170,14 +170,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:33.339Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:24.220Z"
     },
     {
       "scenario": "replay",
       "passed": true,
-      "correlation_id": "1c3fa13c-f95f-43a7-920f-9f014fce67cb",
+      "correlation_id": "bbf9af4b-6a58-433a-87fa-0df0289db936",
       "decision": "DENY",
       "reason": "DENY_REPLAY",
       "decided_by": "proof_carrier",
@@ -195,14 +195,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:39.289Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:30.069Z"
     },
     {
       "scenario": "wrong_agent",
       "passed": true,
-      "correlation_id": "8e63d4ec-ef13-45dd-be4f-a11a946254a4",
+      "correlation_id": "d92ed212-3587-40d3-ae45-e25d3792f453",
       "decision": "DENY",
       "reason": "DENY_SUBJECT_MISMATCH",
       "decided_by": "receiver_precheck",
@@ -220,14 +220,14 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:43.758Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:34.537Z"
     },
     {
       "scenario": "copied_certificate",
       "passed": true,
-      "correlation_id": "7d45b54a-e9ec-486c-a182-236059ff97f9",
+      "correlation_id": "443c9fe4-5938-4a7e-a0ea-daaf9c7ad0e2",
       "decision": "DENY",
       "reason": "DENY_VERIFICATION_FAILED",
       "decided_by": "ratify_verification",
@@ -245,10 +245,10 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:44:48.300Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:34:39.314Z"
     }
   ],
-  "evidence_sha256": "7a9b0d4d8bb2dc5a031135a4d1c24dd216f9152804b7ff6f925c73157957b9f2"
+  "evidence_sha256": "5dc4606260daa89202672aebb6b1d0f02817e22313b3e9379e71a7b4b51fddea"
 }

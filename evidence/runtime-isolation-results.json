@@ -1,12 +1,12 @@
 {
   "schema": "ratify-maritime-runtime-isolation-results/v1",
-  "executed_at": "2026-08-30T16:46:20.829701+00:00",
-  "source_revision": "0a0701d7c743e9380a4feaf6dd508df8ee96c8f8",
+  "executed_at": "2026-08-31T17:36:17.590994+00:00",
+  "source_revision": "332e3fa6b6eb1ba6b88b50f7718ad9ce1a39afc0",
   "endpoint": "https://maritime-api.ratifyprotocol.com/api/scenario",
   "origin": "https://labs.ratifyprotocol.com",
   "claim": "two separately delegated agents on one platform, each allowed within its own authority and neither able to use the other's",
   "deployment": {
-    "agent_image": "ghcr.io/identities-ai/ratify-maritime-agent@sha256:9d3397966eb549b109ee055512986680243a46a8d145e22c46551cda1fa69d1e",
+    "agent_image": "ghcr.io/identities-ai/ratify-maritime-agent@sha256:e933dc0d49b2ca154f8d89af7cb81c23dafdedc09a6d1b8fe32e015bfba0b4c5",
     "agent_source_revision": "347fd4dd0f9a5495c9d6531917322f9222ec470a",
     "receiver_image": "ghcr.io/identities-ai/ratify-maritime-receiver@sha256:dbbef49f304ab682799137745c949b0bf07340725b07fc6a3d98177a9bb9c5e4",
     "receiver_source_revision": "8846bcf4c706f00d10dcb0328b5e012dbb269f3d",
@@ -29,11 +29,11 @@
       "runtime": "primary",
       "scenario": "allow",
       "passed": true,
-      "latency_ms": 4929,
+      "latency_ms": 4726,
       "transient_proxy_failures": 0,
       "handler_invocations_before": null,
       "handler_invocations_after": 3,
-      "correlation_id": "01f4b25e-9534-4ef0-950c-67f449519396",
+      "correlation_id": "1161f3d1-34fd-457d-87b3-1f36f4ff6e18",
       "decision": "ALLOW",
       "reason": "ALLOW",
       "decided_by": "ratify_verification",
@@ -51,20 +51,20 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:45:07.912Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:35:04.408Z"
     },
     {
       "attempt": "secondary_own_authority",
       "runtime": "secondary",
       "scenario": "isolation_own",
       "passed": true,
-      "latency_ms": 4817,
+      "latency_ms": 4925,
       "transient_proxy_failures": 0,
       "handler_invocations_before": 3,
       "handler_invocations_after": 4,
-      "correlation_id": "7a976fa3-2dd5-4cad-94a5-e81475a36e76",
+      "correlation_id": "0d8fd571-9153-4f55-a649-d626b62ffafe",
       "decision": "ALLOW",
       "reason": "ALLOW",
       "decided_by": "ratify_verification",
@@ -82,20 +82,20 @@
       "delegation_resource": "site:warehouse-portland-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:45:20.726Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:35:17.335Z"
     },
     {
       "attempt": "secondary_other_site",
       "runtime": "secondary",
       "scenario": "isolation_wrong_site",
       "passed": true,
-      "latency_ms": 4664,
+      "latency_ms": 4907,
       "transient_proxy_failures": 0,
       "handler_invocations_before": 4,
       "handler_invocations_after": 4,
-      "correlation_id": "b6556217-dd3f-4e0c-92ff-d686ad7c31ef",
+      "correlation_id": "5616584f-a299-4fbc-88af-5ec4d7c02ba5",
       "decision": "DENY",
       "reason": "DENY_RESOURCE_MISMATCH",
       "decided_by": "ratify_verification",
@@ -113,20 +113,20 @@
       "delegation_resource": "site:warehouse-portland-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:45:33.393Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:35:30.222Z"
     },
     {
       "attempt": "secondary_borrowed_subject",
       "runtime": "secondary",
       "scenario": "isolation_borrowed_subject",
       "passed": true,
-      "latency_ms": 26505,
+      "latency_ms": 26554,
       "transient_proxy_failures": 0,
       "handler_invocations_before": 4,
       "handler_invocations_after": 4,
-      "correlation_id": "3a7924d9-1c64-42de-a05d-5ba81417921c",
+      "correlation_id": "1b84485c-2b0c-4b61-b004-75a764c009b8",
       "decision": "DENY",
       "reason": "DENY_SUBJECT_MISMATCH",
       "decided_by": "receiver_precheck",
@@ -144,20 +144,20 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:46:07.799Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:36:04.821Z"
     },
     {
       "attempt": "secondary_borrowed_certificate",
       "runtime": "secondary",
       "scenario": "isolation_borrowed_certificate",
       "passed": true,
-      "latency_ms": 5006,
+      "latency_ms": 4800,
       "transient_proxy_failures": 0,
       "handler_invocations_before": 4,
       "handler_invocations_after": 4,
-      "correlation_id": "7516b3d1-98f0-456d-95c1-1f7863e53512",
+      "correlation_id": "a282a749-19db-48bf-aa26-0308b5fed337",
       "decision": "DENY",
       "reason": "DENY_VERIFICATION_FAILED",
       "decided_by": "ratify_verification",
@@ -175,9 +175,9 @@
       "delegation_resource": "site:warehouse-seattle-01",
       "delegation_category": "electrical",
       "delegation_audience": "maritime-ratify-demo-receiver",
-      "delegation_issued_at": 1788107746,
-      "delegation_expires_at": 1788712546,
-      "timestamp": "2026-08-30T16:46:20.915Z"
+      "delegation_issued_at": 1788196659,
+      "delegation_expires_at": 1788801459,
+      "timestamp": "2026-08-31T17:36:17.615Z"
     }
   ],
   "disclosures": {
@@ -187,5 +187,5 @@
     "evidence_sha256": "Integrity checksum over this file's canonical form. It is not a signature and it does not attest that the recorded execution occurred.",
     "operator": "Both runtimes and the receiver are operated by Ratify. This demonstrates isolation between separately delegated agents, not between separate organizations."
   },
-  "evidence_sha256": "e89a994400e497e27da107cc4e268c1c1a93587362933f41e7d51e4fc29b8a9a"
+  "evidence_sha256": "4ed8f682fbc0ed6d981a713d6faf2cd96b2f8db5f015d0ab17f051e702f32ba5"
 }
