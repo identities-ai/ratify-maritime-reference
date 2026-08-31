@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from collections import deque
+import hashlib
 import hmac
 import json
 import os
@@ -97,6 +98,7 @@ class AgentSettings:
                 ).decode("utf-8")
         except (OSError, ValueError, UnicodeDecodeError):
             raise RuntimeError("invalid deployment delegation") from None
+        _verify_file_digest(delegation_path, "RATIFY_DELEGATION_SHA256")
         delegation = decode_delegation_cert(delegation_wire)
         private_key = HybridPrivateKey(
             ed25519=_private_key("RATIFY_AGENT_ED25519_PRIVATE_B64", 32),
@@ -116,6 +118,10 @@ class AgentSettings:
         if hmac.compare_digest(receiver_token, demo_token):
             raise RuntimeError("RATIFY_DEMO_TOKEN must differ from RATIFY_RECEIVER_TOKEN")
         authority = _authority_fixture(delegation, private_key)
+        _verify_file_digest(
+            os.environ.get("RATIFY_SCENARIO_AUTHORITIES_PATH"),
+            "RATIFY_SCENARIO_AUTHORITIES_SHA256",
+        )
         scenario_authorities, supported = _scenario_configuration(authority)
         return cls(
             authority=authority,
@@ -128,6 +134,25 @@ class AgentSettings:
             model_mode=mode,
             model_id=model_id,
         )
+
+
+def _verify_file_digest(path: str | None, variable: str) -> None:
+    """Verify a volume-mounted artifact when an operator supplies its digest.
+
+    The check is optional for backwards-compatible image deployments. It makes
+    file-API rotation fail closed when the expected SHA-256 is configured.
+    """
+    expected = os.environ.get(variable)
+    if not expected:
+        return
+    if not path:
+        raise RuntimeError(f"{variable} requires a file path")
+    try:
+        digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        raise RuntimeError(f"unable to read artifact for {variable}") from None
+    if not hmac.compare_digest(digest, expected.lower()):
+        raise RuntimeError(f"artifact digest mismatch for {variable}")
 
 
 class _RateLimiter:
