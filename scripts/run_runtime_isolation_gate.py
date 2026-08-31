@@ -247,7 +247,7 @@ def main() -> int:
             "secondary_agent_subject": arguments.secondary_agent_subject,
             "worker_version": arguments.worker_version,
             "runtimes_share_one_image": True,
-            "maritime_attestation": args.maritime_attestation,
+            "maritime_attestation": arguments.maritime_attestation,
             **identity,
         },
         "passed": not failures and len(attempts) == len(expectations),
