@@ -77,6 +77,16 @@ def test_both_gates_read_one_shared_contract():
         )
 
 
+@pytest.mark.parametrize("name", [
+    "run_live_adversarial_gate", "run_runtime_isolation_gate",
+])
+def test_both_gates_disclose_retried_platform_stalls(name):
+    """A retried stall must be recorded, never silently absorbed."""
+    disclosures = _load(name).DISCLOSURES
+    assert "transient_failures" in disclosures
+    assert "never retried" in disclosures["transient_failures"]
+
+
 def test_registry_check_rejects_a_revision_mismatch(monkeypatch):
     gate = _load("run_live_adversarial_gate")
     monkeypatch.setattr(gate, "_observed_revision", lambda image: "aaa")
