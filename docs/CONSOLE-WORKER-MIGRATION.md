@@ -2,13 +2,18 @@
 
 ## Current state
 
-The public console remains on Sites at `/maritime`. A separate staging Worker
-has been deployed without changing the Sites deployment or DNS:
+The public console is served by the production Cloudflare Worker at `/maritime`
+through the Ratify Labs Worker. The Labs Worker targets:
 
-`https://ratify-maritime-demo-console-staging.chuks-04d.workers.dev`
+`https://ratify-maritime-demo-console-production.chuks-04d.workers.dev`
 
-The staging Worker uses the same console build and a staging-only router secret.
-The production `LABS_ROUTER_TOKEN` and Sites deployment were not modified.
+The former Sites/provider origin remains available only as a rollback reference
+and is not the public path:
+
+`https://ratify-maritime-lab.chuksy0x01.chatgpt.site`
+
+The production Worker uses the same console build and the production router
+secret. The separate staging Worker remains available for pre-release checks.
 
 ## Staging evidence
 
@@ -37,17 +42,19 @@ the old provider hostname and make a staging Worker return 404.
 
 ## Production sequence
 
-Production migration is not approved by this document. Before changing the
-console origin or DNS:
+The production cutover is complete. The Labs Worker now routes the registered
+Maritime page and assets to the production console Worker. Before future
+changes:
 
-1. Add a CI build-and-deploy job that uses the pinned Wrangler version, removes
-   `legacy_env`, sets the hostname variable, and requires the console secret.
+1. Use the CI build-and-deploy job with the pinned Wrangler version, remove
+   `legacy_env`, set the hostname variable, and require the console secret.
 2. Verify the staging Worker with the rendered HTML, assets, metadata, valid and
    invalid router credentials, and the full scenario proxy path.
-3. Deploy a production Worker while Sites remains available as fallback.
-4. Point the Labs proxy at the production Worker only after direct checks pass.
-5. Retain the old provider hostname and token path during the observation window.
-6. Remove the Sites dependency only in a later, separately reviewed change.
+3. Deploy the production console Worker while the former provider origin remains
+   available as fallback.
+4. Point the Labs Worker at the production Worker only after direct checks pass.
+5. Retain the old provider hostname and token path for rollback during the
+   observation window.
 
 The console's scenario proxy is a separate Worker and is not part of this
-static-console migration.
+static-console deployment.
