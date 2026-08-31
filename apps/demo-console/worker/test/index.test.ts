@@ -144,7 +144,7 @@ describe("scenario proxy", () => {
       "delegation_issued_at", "delegation_resource", "delegation_scope", "handler_invocations",
       "handler_invoked", "reason", "requested_amount_minor", "requested_category",
       "requested_description", "requested_resource", "scenario", "timestamp",
-      "verification_status",
+      "upstream_duration_ms", "verification_status",
     ]);
     expect(body).toMatchObject({ requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
@@ -458,4 +458,29 @@ describe("runtime routing", () => {
       expect(fetchAgent).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("upstream timing", () => {
+  it("reports a duration the proxy measured around its own upstream call", async () => {
+    const { env } = environment();
+    const fetchAgent = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      return (agent())(new Request("https://agent.example"));
+    });
+    const response = await handleRequest(request(), env, fetchAgent as never);
+    const body = await response.json<Record<string, unknown>>();
+    expect(typeof body.upstream_duration_ms).toBe("number");
+    // A measured value, not a placeholder: it has to reflect the real delay
+    // and stay below the wall clock of the whole request.
+    expect(body.upstream_duration_ms as number).toBeGreaterThanOrEqual(20);
+    expect(body.upstream_duration_ms as number).toBeLessThan(5_000);
+  });
+
+  it("reports no timing when the upstream call fails", async () => {
+    const { env } = environment();
+    const fetchAgent = vi.fn(async () => { throw new Error("upstream down"); });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(await response.text()).toBe('{"error":"SCENARIO_UNAVAILABLE"}');
+  });
 });
