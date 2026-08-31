@@ -59,6 +59,66 @@ CHECKS = [
 ]
 
 
+def _live_gate_checks() -> list[Check]:
+    """Re-execute both deployed gates against the deployment on record.
+
+    Every argument comes from the committed evidence, so this also answers a
+    question the artifacts cannot ask themselves: does the deployment they
+    describe still behave the way they recorded. Renewal is the case that
+    matters. A stale revocation id leaves the revoked scenario returning ALLOW,
+    which no test or reproduction would notice because both use fresh material
+    issued locally.
+    """
+    try:
+        adversarial = json.loads(
+            (REPOSITORY / "evidence" / "adversarial-results.json")
+            .read_text(encoding="utf-8")
+        )
+        isolation = json.loads(
+            (REPOSITORY / "evidence" / "runtime-isolation-results.json")
+            .read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return []
+    a, i = adversarial["deployment"], isolation["deployment"]
+    scratch = REPOSITORY / ".acceptance"
+    return [
+        Check(
+            "Live adversarial gate",
+            [
+                "uv", "run", "--python", "3.12", "python",
+                "scripts/run_live_adversarial_gate.py", str(scratch / "adversarial.json"),
+                "--agent-image", a["agent_image"],
+                "--agent-source-revision", a["agent_source_revision"],
+                "--receiver-image", a["receiver_image"],
+                "--receiver-source-revision", a["receiver_source_revision"],
+                "--worker-version", a["worker_version"],
+            ],
+            REPOSITORY,
+            live=True,
+        ),
+        Check(
+            "Live runtime isolation gate",
+            [
+                "uv", "run", "--python", "3.12", "python",
+                "scripts/run_runtime_isolation_gate.py", str(scratch / "isolation.json"),
+                "--agent-image", i["agent_image"],
+                "--agent-source-revision", i["agent_source_revision"],
+                "--receiver-image", i["receiver_image"],
+                "--receiver-source-revision", i["receiver_source_revision"],
+                "--primary-runtime-id", i["primary_runtime_id"],
+                "--secondary-runtime-id", i["secondary_runtime_id"],
+                "--receiver-runtime-id", i["receiver_runtime_id"],
+                "--primary-agent-subject", i["primary_agent_subject"],
+                "--secondary-agent-subject", i["secondary_agent_subject"],
+                "--worker-version", i["worker_version"],
+            ],
+            REPOSITORY,
+            live=True,
+        ),
+    ]
+
+
 def _run(check: Check) -> Check:
     started = time.monotonic()
     try:
@@ -128,6 +188,14 @@ def main() -> int:
         help="Skip the checks that contact the deployment or a registry.",
     )
     parser.add_argument(
+        "--live-gates",
+        action="store_true",
+        help="Also execute both deployed gates against the deployment the "
+             "committed evidence describes. Run this after any renewal or "
+             "redeploy; it writes its results under .acceptance/ rather than "
+             "overwriting the published artifacts.",
+    )
+    parser.add_argument(
         "--evidence-only",
         action="store_true",
         help="Check only the recorded evidence, with no toolchain required.",
@@ -146,12 +214,15 @@ def main() -> int:
             print(f"               {detail}")
         return 0 if status == "pass" else 1
 
+    catalogue = CHECKS + (_live_gate_checks() if arguments.live_gates else [])
     selected = [
-        check for check in CHECKS
+        check for check in catalogue
         if not (arguments.offline and check.live)
         and not (arguments.skip_reproduction and "reproduction" in check.name.lower())
     ]
-    skipped = [check for check in CHECKS if check not in selected]
+    skipped = [check for check in catalogue if check not in selected]
+    if arguments.live_gates:
+        (REPOSITORY / ".acceptance").mkdir(exist_ok=True)
 
     print(f"running {len(selected)} checks\n")
     for check in selected:
