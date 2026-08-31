@@ -390,6 +390,94 @@ def _settings_from(issuance, env_name, delegation, authorities, monkeypatch):
     return AgentSettings.from_environment()
 
 
+def test_measured_spans_separate_our_work_from_transit(tmp_path, monkeypatch):
+    asyncio.run(_exercise_measured_spans(tmp_path, monkeypatch))
+
+
+async def _exercise_measured_spans(tmp_path, monkeypatch):
+    """Every reported span must be observed, not asserted.
+
+    Maritime pushed back on treating one round-trip figure as our cost. These
+    spans exist to separate our cryptography from platform transit, so a
+    hardcoded or missing value would defeat the reason they are published.
+    """
+    issuance = tmp_path / "issuance"
+    issue_deployment(issuance, now=int(time.time()))
+    receiver_env = dict(
+        line.split("=", 1)
+        for line in (issuance / "receiver.env").read_text().splitlines()
+    )
+    settings = _settings_from(
+        issuance, "agent.env", "delegation.json",
+        "scenario-authorities.json", monkeypatch,
+    )
+    receiver = WorkOrderReceiver(
+        trusted_root_id=settings.authority.root_id,
+        trusted_root_public_key=settings.authority.root_public_key,
+    )
+    receiver.revocation.revoke(receiver_env["RATIFY_REVOKED_CERT_IDS"])
+    port = _unused_port()
+    app = create_receiver_app(
+        receiver=receiver,
+        authenticator=CallerAuthenticator({
+            settings.receiver_token: receiver_env["RATIFY_CALLER_ID_PRIMARY"]
+        }),
+        presentations=PresentationRegistry(),
+        caller_subjects={
+            receiver_env["RATIFY_CALLER_ID_PRIMARY"]: settings.authority.agent_id
+        },
+        allowed_hosts=[f"127.0.0.1:{port}"],
+    )
+    server = uvicorn.Server(uvicorn.Config(
+        app, host="127.0.0.1", port=port, log_level="error"
+    ))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        await asyncio.sleep(0.01)
+    assert server.started
+    connected = AgentSettings(
+        authority=settings.authority,
+        scenario_authorities=settings.scenario_authorities,
+        supported_scenarios=settings.supported_scenarios,
+        receiver_mcp_url=f"http://127.0.0.1:{port}/mcp/",
+        presentation_url=f"http://127.0.0.1:{port}/presentations",
+        receiver_token=settings.receiver_token,
+        demo_token=settings.demo_token,
+        model_mode="deterministic",
+        model_id=None,
+    )
+    spans = (
+        "challenge_duration_ms", "proof_build_duration_ms",
+        "proof_upload_duration_ms", "dispatch_duration_ms",
+        "interceptor_duration_ms",
+    )
+    try:
+        allowed = await run_scenario(connected, "allow")
+        denied = await run_scenario(connected, "wrong_agent")
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
+
+    for name in spans:
+        assert isinstance(allowed[name], int), name
+        assert allowed[name] >= 0, name
+    # The parts cannot exceed the whole they were measured inside.
+    assert allowed["interceptor_duration_ms"] >= max(
+        allowed[name] for name in spans if name != "interceptor_duration_ms"
+    )
+    # Hybrid signing is real work, so a zero here would mean nothing was timed.
+    assert allowed["proof_build_duration_ms"] > 0
+    assert allowed["verification_duration_ms"] > 0
+
+    # A refusal reached before verification must report no verification time,
+    # which is what keeps the number meaningful rather than decorative.
+    assert denied["decided_by"] == "receiver_precheck"
+    assert denied["verification_duration_ms"] is None
+
+
 async def _exercise_runtime_isolation(tmp_path, monkeypatch):
     """Two separately delegated runtimes against one receiver.
 
