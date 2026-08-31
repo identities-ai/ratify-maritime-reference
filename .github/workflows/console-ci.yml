@@ -10,6 +10,11 @@ name: Console CI
 # credential, so a regression there exposes the console rather than breaking it,
 # which is the kind of failure a green build hides.
 #
+# The scenario proxy is covered here too. It had no automated checks at all: its
+# tests ran only where someone remembered to run them, while it is the component
+# every public request passes through and the only thing holding the demo
+# credentials and the console-origin gate.
+#
 # This workflow does not deploy. Deployment is scoped in
 # docs/CONSOLE-WORKER-MIGRATION.md and needs its own review.
 on:
@@ -17,10 +22,12 @@ on:
     branches: [main]
     paths:
       - 'apps/demo-console/site/**'
+      - 'apps/demo-console/worker/**'
       - '.github/workflows/console-ci.yml'
   pull_request:
     paths:
       - 'apps/demo-console/site/**'
+      - 'apps/demo-console/worker/**'
       - '.github/workflows/console-ci.yml'
 
 permissions:
@@ -89,3 +96,46 @@ jobs:
       # forced major upgrade. Adding a gate that is red on its first run trains
       # people to ignore red. Clear the advisories in their own change, then add
       # the gate, which is the order the catalog repository used.
+
+  verify-proxy:
+    name: Verify scenario proxy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/demo-console/worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-console/worker/package-lock.json
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # The proxy's suite covers the origin gate, the rate limiter, credential
+      # isolation between the two runtimes, and the fail-closed response
+      # validation. A silently dropped test there is a green build over a
+      # weaker boundary, so an empty or shrinking run fails.
+      - name: Every proxy test must run
+        run: |
+          set -euo pipefail
+          npx vitest run --reporter=json --outputFile="$RUNNER_TEMP/proxy-tests.json" >/dev/null
+          node -e '
+            const run = require(process.env.RUNNER_TEMP + "/proxy-tests.json");
+            const { numTotalTests: total, numPendingTests: pending, numTodoTests: todo } = run;
+            if (pending) { console.error(`::error::${pending} proxy test(s) skipped`); process.exit(1); }
+            if (todo) { console.error(`::error::${todo} proxy test(s) marked todo`); process.exit(1); }
+            if (total < 50) {
+              console.error(`::error::expected at least 50 proxy tests, ran ${total}`);
+              process.exit(1);
+            }
+            console.log(`${total} proxy tests ran with none skipped`);
+          '
