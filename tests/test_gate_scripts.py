@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,7 +22,14 @@ def _load(name: str):
     spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # dataclasses resolves a class's module through sys.modules, so a module
+    # executed without being registered there fails to define one.
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        del sys.modules[name]
+        raise
     return module
 
 
@@ -100,3 +108,31 @@ def test_registry_check_rejects_a_revision_mismatch(monkeypatch):
     assert gate._verify_image_identity("ghcr.io/x@sha256:1", "aaa") == (
         "unverified", None
     )
+
+
+def test_acceptance_gate_detects_stale_evidence(monkeypatch, tmp_path):
+    """The gate has to fail on the staleness it exists to catch."""
+    gate = _load("run_acceptance_gate")
+    assert gate._evidence_is_current()[0] == "pass"
+
+    stale = tmp_path / "repo"
+    (stale / "evidence").mkdir(parents=True)
+    (stale / "scripts").mkdir()
+    (stale / "scripts" / "reproduce_gate_locally.py").write_text("sha256:deadbeef")
+    for name in ("adversarial-results", "runtime-isolation-results"):
+        (stale / "evidence" / f"{name}.json").write_text(json.dumps({
+            "passed": True,
+            "deployment": {
+                "maritime_attestation": None,
+                "agent_image": "ghcr.io/a@sha256:aaa",
+                "receiver_image": "ghcr.io/b@sha256:bbb",
+            },
+            "disclosures": {
+                "image_binding": "", "evidence_sha256": "",
+                "transient_failures": "",
+            },
+        }))
+    monkeypatch.setattr(gate, "REPOSITORY", stale)
+    status, detail = gate._evidence_is_current()
+    assert status == "FAIL"
+    assert "does not default to the deployed agent image" in detail
