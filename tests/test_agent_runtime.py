@@ -1,5 +1,6 @@
 import base64
 import asyncio
+import hashlib
 import json
 import socket
 import threading
@@ -24,6 +25,7 @@ from maritime_ratify.agent_runtime import (
     run_scenario,
     _model,
     _SECONDARY_SCENARIOS,
+    _verify_file_digest,
 )
 from maritime_ratify.deployment_issuance import issue_deployment
 import maritime_ratify.agent_runtime as runtime_module
@@ -83,6 +85,24 @@ def test_agent_settings_reject_invalid_delegation_transport(monkeypatch):
 
     with pytest.raises(RuntimeError, match="invalid deployment delegation"):
         AgentSettings.from_environment()
+
+
+def test_artifact_digest_check_accepts_matching_file(tmp_path, monkeypatch):
+    artifact = tmp_path / "delegation.json"
+    contents = b"reviewed delegation"
+    artifact.write_bytes(contents)
+    monkeypatch.setenv("RATIFY_DELEGATION_SHA256", hashlib.sha256(contents).hexdigest())
+
+    _verify_file_digest(str(artifact), "RATIFY_DELEGATION_SHA256")
+
+
+def test_artifact_digest_check_fails_closed_on_mismatch(tmp_path, monkeypatch):
+    artifact = tmp_path / "delegation.json"
+    artifact.write_bytes(b"tampered delegation")
+    monkeypatch.setenv("RATIFY_DELEGATION_SHA256", "0" * 64)
+
+    with pytest.raises(RuntimeError, match="artifact digest mismatch"):
+        _verify_file_digest(str(artifact), "RATIFY_DELEGATION_SHA256")
 
 
 def test_production_model_is_explicit_and_uses_configured_model(monkeypatch):
