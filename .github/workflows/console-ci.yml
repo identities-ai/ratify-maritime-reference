@@ -1,4 +1,4 @@
-name: Console CI
+name: CI
 
 # Verification for the demo console. This repository had no automated checks for
 # it: pull requests touching the console merged on whatever their author happened
@@ -15,19 +15,37 @@ name: Console CI
 # every public request passes through and the only thing holding the demo
 # credentials and the console-origin gate.
 #
+# So was the Python package, which is the whole reference: the receiver that
+# makes every authorization decision, the agent, the issuance command that
+# rotates deployment authority, and the gate scripts. None of it ran in CI. A
+# broken gate script reached main that way, parsing cleanly and failing only
+# when a person ran it.
+#
 # This workflow does not deploy. Deployment is scoped in
 # docs/CONSOLE-WORKER-MIGRATION.md and needs its own review.
 on:
   push:
     branches: [main]
     paths:
-      - 'apps/demo-console/site/**'
-      - 'apps/demo-console/worker/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'apps/**'
+      - 'docs/gate-expectations.json'
+      - 'docs/runtime-isolation-expectations.json'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/console-ci.yml'
   pull_request:
     paths:
-      - 'apps/demo-console/site/**'
-      - 'apps/demo-console/worker/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'apps/**'
+      - 'docs/gate-expectations.json'
+      - 'docs/runtime-isolation-expectations.json'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/console-ci.yml'
 
 permissions:
@@ -96,6 +114,39 @@ jobs:
       # forced major upgrade. Adding a gate that is red on its first run trains
       # people to ignore red. Clear the advisories in their own change, then add
       # the gate, which is the order the catalog repository used.
+
+  verify-reference:
+    name: Verify Python reference
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Test
+        run: uv run --python 3.12 pytest -q
+
+      # The gate scripts and the shared contracts are the reference's public
+      # surface. A skipped test there is a green build over less evidence, and
+      # the contracts are read by three separate runners that must not drift.
+      - name: Every reference test must run
+        run: |
+          set -euo pipefail
+          uv run --python 3.12 pytest -q --no-header 2>&1 | tee "$RUNNER_TEMP/pytest.log"
+          tail -1 "$RUNNER_TEMP/pytest.log" | grep -qE '^[0-9]+ passed' || {
+            echo "::error::pytest did not report a clean pass"; exit 1;
+          }
+          if grep -qE '[0-9]+ (skipped|xfailed|error)' "$RUNNER_TEMP/pytest.log"; then
+            echo "::error::a reference test was skipped, xfailed, or errored"
+            exit 1
+          fi
+
+      - name: The acceptance gate agrees offline
+        run: python3 scripts/run_acceptance_gate.py --offline --skip-reproduction
 
   verify-proxy:
     name: Verify scenario proxy
