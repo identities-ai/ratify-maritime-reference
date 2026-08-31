@@ -1,0 +1,101 @@
+name: Deploy console production candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  WORKER_NAME: ratify-maritime-demo-console-production
+  WORKER_HOSTNAME: ratify-maritime-demo-console-production.chuks-04d.workers.dev
+
+jobs:
+  deploy:
+    name: Build and deploy production candidate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ env.WORKER_HOSTNAME }}/maritime
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-console/site/package-lock.json
+
+      - name: Require deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MARITIME_CONSOLE_ROUTER_TOKEN: ${{ secrets.MARITIME_CONSOLE_ROUTER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN is not set"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::CLOUDFLARE_ACCOUNT_ID is not set"; exit 1; }
+          test -n "$MARITIME_CONSOLE_ROUTER_TOKEN" || { echo "::error::MARITIME_CONSOLE_ROUTER_TOKEN is not set"; exit 1; }
+
+      - name: Install and build
+        working-directory: apps/demo-console/site
+        run: npm ci && npm run build
+
+      - name: Validate and prepare Worker config
+        working-directory: apps/demo-console/site
+        run: |
+          set -euo pipefail
+          cfg=dist/server/wrangler.json
+          test "$(jq -r '.name // empty' "$cfg")" = ratify-maritime-demo-console || {
+            echo "::error::generated config targets an unexpected Worker"; exit 1;
+          }
+          jq --arg host "$WORKER_HOSTNAME" 'del(.legacy_env) | .vars.CONSOLE_ALLOWED_HOSTNAMES = $host' "$cfg" > "$cfg.tmp"
+          mv "$cfg.tmp" "$cfg"
+          jq -e '.vars.CONSOLE_ALLOWED_HOSTNAMES and (.legacy_env == null)' "$cfg" >/dev/null
+
+      - name: Record build fingerprint
+        id: fingerprint
+        working-directory: apps/demo-console/site
+        run: |
+          set -euo pipefail
+          mapfile -t scripts < <(find dist/client -type f -path '*/_next/static/chunks/index-*.js' -print | sort)
+          test "${#scripts[@]}" -eq 1 || { echo "::error::expected one console index script"; exit 1; }
+          echo "script=$(basename "${scripts[0]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Install the production candidate router secret
+        working-directory: apps/demo-console/site
+        env:
+          MARITIME_CONSOLE_ROUTER_TOKEN: ${{ secrets.MARITIME_CONSOLE_ROUTER_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          secret_file=$(mktemp)
+          trap 'rm -f "$secret_file"' EXIT
+          printf '%s' "$MARITIME_CONSOLE_ROUTER_TOKEN" > "$secret_file"
+          npx wrangler secret put LABS_ROUTER_TOKEN --name "$WORKER_NAME" < "$secret_file"
+
+      - name: Deploy production candidate Worker
+        working-directory: apps/demo-console/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --name "$WORKER_NAME" --config dist/server/wrangler.json
+
+      - name: Verify production candidate Worker
+        env:
+          MARITIME_CONSOLE_ROUTER_TOKEN: ${{ secrets.MARITIME_CONSOLE_ROUTER_TOKEN }}
+          EXPECTED_SCRIPT: ${{ steps.fingerprint.outputs.script }}
+        run: |
+          set -euo pipefail
+          base="https://$WORKER_HOSTNAME"
+          html="$(curl -fsS -H "X-Ratify-Labs-Route: Bearer $MARITIME_CONSOLE_ROUTER_TOKEN" "$base/maritime")"
+          observed="$(grep -oE 'index-[A-Za-z0-9_-]+\.js' <<<"$html" | sort -u | tr '\n' ' ')"
+          grep -Fq "$EXPECTED_SCRIPT" <<<"$html" || {
+            echo "::error::candidate HTML fingerprint mismatch; expected=$EXPECTED_SCRIPT observed=${observed:-none} bytes=${#html}"
+            exit 1
+          }
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -H "X-Ratify-Labs-Route: Bearer $MARITIME_CONSOLE_ROUTER_TOKEN" "$base/maritime")" = 200
+          test "$(curl -sS -o /dev/null -w '%{http_code}' -H 'X-Ratify-Labs-Route: Bearer wrong-token' "$base/maritime")" = 404
+          test "$(curl -sS -o /dev/null -w '%{http_code}' "$base/maritime")" = 404
+          echo "production candidate serves $EXPECTED_SCRIPT and rejects unauthenticated requests"
