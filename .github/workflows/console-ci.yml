@@ -145,8 +145,10 @@ jobs:
             exit 1
           fi
 
-      - name: The acceptance gate agrees offline
-        run: python3 scripts/run_acceptance_gate.py --offline --skip-reproduction
+      # Only the evidence check, because the toolchain checks belong to the
+      # jobs that install their own dependencies.
+      - name: Recorded evidence stays complete
+        run: python3 scripts/run_acceptance_gate.py --evidence-only
 
   verify-proxy:
     name: Verify scenario proxy
