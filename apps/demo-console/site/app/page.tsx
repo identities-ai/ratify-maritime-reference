@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 
 const API = "https://maritime-api.ratifyprotocol.com/api/scenario";
+const REQUEST_TIMEOUT_MS = 75_000;
 const browserClock = () => globalThis.performance.now();
 const stages = [
   ["01", "Request submitted", "The browser sent a closed scenario to the public proxy"],
@@ -108,11 +109,14 @@ export default function Home() {
       window.setTimeout(() => setProgress(2), 4000),
       window.setTimeout(() => setProgress(3), 7000),
     ];
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario }),
+        signal: controller.signal,
       });
       if (response.status === 429) {
         setError({
@@ -128,13 +132,17 @@ export default function Home() {
       if (target === "isolation") setIsolationResults((current) => ({ ...current, [scenario as IsolationScenario]: executed }));
       else setResults((current) => ({ ...current, [scenario as Scenario]: executed }));
       return executed;
-    } catch {
+    } catch (cause) {
+      const timedOut = cause instanceof DOMException && cause.name === "AbortError";
       setError({
-        title: "Runtime did not return a verified result",
-        body: "The isolated Maritime runtimes may still be waking. No automatic retry was attempted. Wait a few seconds, then try again.",
+        title: timedOut ? "Request timed out" : "Runtime did not return a verified result",
+        body: timedOut
+          ? "The proxy did not return within 75 seconds. No outcome was assumed; try this scenario again."
+          : "The isolated Maritime runtimes may still be waking. No automatic retry was attempted. Wait a few seconds, then try again.",
       });
       return null;
     } finally {
+      window.clearTimeout(timeout);
       timers.forEach(window.clearTimeout);
       setPending(null);
     }
