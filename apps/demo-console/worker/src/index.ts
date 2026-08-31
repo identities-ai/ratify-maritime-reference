@@ -50,6 +50,11 @@ interface LimiterStub {
 // carries its own delegation and its own transport credential.
 const SECOND_RUNTIME_PREFIX = "isolation_";
 
+// Spans measured inside our own components. They are forwarded so the console
+// can show what the authorization work cost against what the platform round
+// trip cost, rather than presenting one figure as if it were all ours.
+const TIMING_FIELDS = ["verification_duration_ms", "challenge_duration_ms", "proof_build_duration_ms", "proof_upload_duration_ms", "dispatch_duration_ms", "interceptor_duration_ms"] as const;
+
 interface Env {
   AGENT_URL: string;
   AGENT_B_URL: string;
@@ -227,6 +232,9 @@ export async function handleRequest(
       typeof value.decision !== "string" ||
       typeof value.reason !== "string" ||
       typeof value.decided_by !== "string" ||
+      !TIMING_FIELDS.every((field) =>
+        typeof value[field] === "number" || value[field] === null
+      ) ||
       !(typeof value.verification_status === "string" ||
         value.verification_status === null) ||
       typeof value.handler_invoked !== "boolean" ||
@@ -255,6 +263,9 @@ export async function handleRequest(
       reason: value.reason,
       decided_by: value.decided_by,
       verification_status: value.verification_status,
+      ...Object.fromEntries(
+        TIMING_FIELDS.map((field) => [field, value[field]]),
+      ),
       handler_invoked: value.handler_invoked,
       handler_invocations: value.handler_invocations,
       requested_amount_minor: value.requested_amount_minor,

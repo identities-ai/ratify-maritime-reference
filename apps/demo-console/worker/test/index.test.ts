@@ -84,6 +84,12 @@ function agent(status = 200, extra: object = {}) {
       reason: "ALLOW",
       decided_by: "ratify_verification",
       verification_status: "authorized_agent",
+      verification_duration_ms: 41,
+      challenge_duration_ms: 12,
+      proof_build_duration_ms: 28,
+      proof_upload_duration_ms: 9,
+      dispatch_duration_ms: 63,
+      interceptor_duration_ms: 118,
       handler_invoked: true,
       handler_invocations: 7,
       requested_amount_minor: 42_000,
@@ -139,12 +145,15 @@ describe("scenario proxy", () => {
       handler_invocations: 7,
     });
     expect(Object.keys(body).sort()).toEqual([
-      "authorized_currency", "authorized_max_amount_minor", "correlation_id", "currency", "decided_by",
-      "decision", "delegation_audience", "delegation_category", "delegation_expires_at",
-      "delegation_issued_at", "delegation_resource", "delegation_scope", "handler_invocations",
-      "handler_invoked", "reason", "requested_amount_minor", "requested_category",
-      "requested_description", "requested_resource", "scenario", "timestamp",
-      "upstream_duration_ms", "verification_status",
+      "authorized_currency", "authorized_max_amount_minor", "challenge_duration_ms",
+      "correlation_id", "currency", "decided_by", "decision", "delegation_audience",
+      "delegation_category", "delegation_expires_at", "delegation_issued_at",
+      "delegation_resource", "delegation_scope", "dispatch_duration_ms",
+      "handler_invocations", "handler_invoked", "interceptor_duration_ms",
+      "proof_build_duration_ms", "proof_upload_duration_ms", "reason",
+      "requested_amount_minor", "requested_category", "requested_description",
+      "requested_resource", "scenario", "timestamp", "upstream_duration_ms",
+      "verification_duration_ms", "verification_status",
     ]);
     expect(body).toMatchObject({ requested_amount_minor: scenario === "over_limit" ? 50_100 : 42_000, authorized_max_amount_minor: 50_000, currency: "USD", authorized_currency: "USD" });
     const init = fetchAgent.mock.calls[0][1] as RequestInit;
@@ -456,6 +465,42 @@ describe("runtime routing", () => {
       const response = await handleRequest(request({ scenario }), stripped, fetchAgent);
       expect(response.status).toBe(503);
       expect(fetchAgent).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("measured spans", () => {
+  it("forwards every span the runtimes measured", async () => {
+    const { env } = environment();
+    const response = await handleRequest(request(), env, agent());
+    const body = await response.json<Record<string, unknown>>();
+    expect(body).toMatchObject({
+      verification_duration_ms: 41,
+      proof_build_duration_ms: 28,
+      interceptor_duration_ms: 118,
+    });
+  });
+
+  it("accepts a null span for a refusal reached before verification", async () => {
+    const { env } = environment();
+    const fetchAgent = agent(200, {
+      decision: "DENY", reason: "DENY_SUBJECT_MISMATCH",
+      decided_by: "receiver_precheck", verification_status: null,
+      verification_duration_ms: null, handler_invoked: false,
+    });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(200);
+    expect((await response.json<Record<string, unknown>>())
+      .verification_duration_ms).toBeNull();
+  });
+
+  it.each(["verification_duration_ms", "proof_build_duration_ms"])(
+    "fails closed when %s is malformed", async (field) => {
+      const { env } = environment();
+      const response = await handleRequest(
+        request(), env, agent(200, { [field]: "fast" }),
+      );
+      expect(response.status).toBe(502);
     },
   );
 });

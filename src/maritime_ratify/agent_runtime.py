@@ -241,19 +241,20 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
     }
     async with httpx.AsyncClient(headers=headers, timeout=30) as http:
         challenge_provider = MCPChallengeProvider(None, "receiver")
+        interceptor = AuthorityInterceptor(
+            authority=scenario_authority,
+            clock=lambda: int(time.time()),
+            challenge_provider=challenge_provider,
+            presentation_uploader=HTTPPresentationUploader(
+                http, settings.presentation_url
+            ),
+            dispatch_transform=_dispatch_transform(scenario),
+            replay_dispatch=scenario == "replay",
+        )
         client, agent = await build_langchain_agent(
             model=model,
             connections=connections,
-            interceptor=AuthorityInterceptor(
-                authority=scenario_authority,
-                clock=lambda: int(time.time()),
-                challenge_provider=challenge_provider,
-                presentation_uploader=HTTPPresentationUploader(
-                    http, settings.presentation_url
-                ),
-                dispatch_transform=_dispatch_transform(scenario),
-                replay_dispatch=scenario == "replay",
-            ),
+            interceptor=interceptor,
         )
         challenge_provider.bind_client(client)
         result = await agent.ainvoke({
@@ -269,6 +270,11 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
     dispatched = _dispatched_arguments(scenario, arguments)
     return {
         **decision,
+        # Spans the agent measured on its own side. Paired with the proxy's
+        # upstream duration and the browser's total, these separate our
+        # cryptography from platform transit rather than leaving one number to
+        # stand for everything.
+        **interceptor.timings,
         "requested_amount_minor": dispatched["amount_minor"],
         "requested_resource": dispatched["resource"],
         "requested_category": dispatched["category"],

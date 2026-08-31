@@ -198,6 +198,7 @@ class WorkOrderReceiver:
             ):
                 return self._deny("DENY_UNTRUSTED_ISSUER", "receiver_precheck")
 
+            verification_started = time.perf_counter()
             try:
                 result = verify_bundle(
                     bundle,
@@ -227,21 +228,32 @@ class WorkOrderReceiver:
             except Exception:
                 self._pending.pop(action.request_id, None)
                 return self._deny("DENY_VERIFIER_UNAVAILABLE", "ratify_verification")
+            # Measured around verification alone, so the receiver's own
+            # cryptographic cost can be separated from platform transit.
+            verification_ms = round(
+                (time.perf_counter() - verification_started) * 1000
+            )
             if not result.valid:
                 self._pending.pop(action.request_id, None)
                 return self._deny(
                     self._reason_code(result.identity_status, result.error_reason),
                     "ratify_verification",
                     result.identity_status,
+                    verification_ms,
                 )
 
             policy_reason = self._evaluate_local_policy(action, bundle)
             if policy_reason is not None:
                 self._pending.pop(action.request_id, None)
-                return self._deny(policy_reason, "receiver_policy", result.identity_status)
+                return self._deny(
+                    policy_reason, "receiver_policy", result.identity_status,
+                    verification_ms,
+                )
 
             self._pending.pop(action.request_id, None)
-            return self._invoke_handler(action, result.identity_status)
+            return self._invoke_handler(
+                action, result.identity_status, verification_ms
+            )
 
     def _evaluate_local_policy(
         self, action: WorkOrder, bundle: ProofBundle
@@ -266,7 +278,7 @@ class WorkOrderReceiver:
         return None
 
     def _invoke_handler(
-        self, action: WorkOrder, verification_status: str
+        self, action: WorkOrder, verification_status: str, verification_ms: int
     ) -> dict[str, Any]:
         self._handler_invocations += 1
         return {
@@ -274,6 +286,7 @@ class WorkOrderReceiver:
             "reason": "ALLOW",
             "decided_by": "ratify_verification",
             "verification_status": verification_status,
+            "verification_duration_ms": verification_ms,
             "handler_invoked": True,
             "handler_invocations": self._handler_invocations,
             "work_order_id": f"demo-{action.request_id}",
@@ -291,12 +304,16 @@ class WorkOrderReceiver:
         reason: str,
         decided_by: str,
         verification_status: str | None = None,
+        verification_ms: int | None = None,
     ) -> dict[str, Any]:
         return {
             "decision": "DENY",
             "reason": reason,
             "decided_by": decided_by,
             "verification_status": verification_status,
+            # Null when the request was refused before verification ran, which
+            # is what distinguishes a receiver-side check from a protocol one.
+            "verification_duration_ms": verification_ms,
             "handler_invoked": False,
             "handler_invocations": self._handler_invocations,
         }
