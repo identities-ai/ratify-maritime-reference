@@ -45,6 +45,18 @@ expired, revoked, replayed, wrong-agent, and copied-certificate denials. See
 [`docs/ADVERSARIAL-RESULTS.md`](docs/ADVERSARIAL-RESULTS.md) for the live result
 contract and inspectable artifact procedure.
 
+Run every check that has to pass before the pilot is called finished:
+
+```bash
+python3 scripts/run_acceptance_gate.py
+```
+
+It runs both test suites, the console build and lint, the proxy typecheck, the
+deployed-asset check, and the local reproduction, then verifies that the
+recorded evidence still carries its own limits and reproduces the deployment it
+describes. `--offline` skips the checks that contact the deployment;
+`--skip-reproduction` skips the slowest one.
+
 To reproduce the same nine results from the published images, without a
 repository install, a Ratify credential, or any call to the live deployment:
 
