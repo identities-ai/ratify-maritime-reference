@@ -25,7 +25,8 @@ from maritime_ratify.agent_runtime import (
     run_scenario,
     _model,
     _SECONDARY_SCENARIOS,
-    _verify_file_digest,
+    _read_verified,
+    _reject_digest_without_path,
 )
 from maritime_ratify.deployment_issuance import issue_deployment
 import maritime_ratify.agent_runtime as runtime_module
@@ -93,7 +94,9 @@ def test_artifact_digest_check_accepts_matching_file(tmp_path, monkeypatch):
     artifact.write_bytes(contents)
     monkeypatch.setenv("RATIFY_DELEGATION_SHA256", hashlib.sha256(contents).hexdigest())
 
-    _verify_file_digest(str(artifact), "RATIFY_DELEGATION_SHA256")
+    assert _read_verified(str(artifact), "RATIFY_DELEGATION_SHA256") == (
+        contents.decode()
+    )
 
 
 def test_artifact_digest_check_fails_closed_on_mismatch(tmp_path, monkeypatch):
@@ -102,7 +105,74 @@ def test_artifact_digest_check_fails_closed_on_mismatch(tmp_path, monkeypatch):
     monkeypatch.setenv("RATIFY_DELEGATION_SHA256", "0" * 64)
 
     with pytest.raises(RuntimeError, match="artifact digest mismatch"):
-        _verify_file_digest(str(artifact), "RATIFY_DELEGATION_SHA256")
+        _read_verified(str(artifact), "RATIFY_DELEGATION_SHA256")
+
+
+def test_artifact_is_read_once_so_the_hash_covers_what_is_used(tmp_path, monkeypatch):
+    """Hashing a second read would validate bytes the runtime is not using.
+
+    The artifact is expected to be rewritten in place during rotation, so a
+    second read is exactly when it can change. Reading once removes the window
+    rather than narrowing it.
+    """
+    artifact = tmp_path / "delegation.json"
+    contents = b"reviewed delegation"
+    artifact.write_bytes(contents)
+    monkeypatch.setenv("RATIFY_DELEGATION_SHA256", hashlib.sha256(contents).hexdigest())
+
+    reads = []
+    original = Path.read_bytes
+
+    def counted(self, *args, **kwargs):
+        reads.append(str(self))
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", counted)
+    _read_verified(str(artifact), "RATIFY_DELEGATION_SHA256")
+    assert reads.count(str(artifact)) == 1
+
+
+def test_expected_digest_without_a_file_fails_rather_than_passing(monkeypatch):
+    """An inline deployment that sets a digest is misconfigured, not exempt."""
+    monkeypatch.setenv("RATIFY_DELEGATION_SHA256", "0" * 64)
+    with pytest.raises(RuntimeError, match="requires a file path"):
+        _reject_digest_without_path("RATIFY_DELEGATION_SHA256")
+
+    monkeypatch.delenv("RATIFY_DELEGATION_SHA256")
+    _reject_digest_without_path("RATIFY_DELEGATION_SHA256")
+
+
+def test_tampered_fixture_stops_the_runtime_from_starting(tmp_path, monkeypatch):
+    """The check has to bite through the real startup path, not only in isolation.
+
+    A unit test on the helper would pass even if nothing called it, which is how
+    the first version of this check reached main inert.
+    """
+    issuance = tmp_path / "issuance"
+    issue_deployment(issuance, now=int(time.time()))
+    for name, value in dict(
+        line.split("=", 1)
+        for line in (issuance / "agent.env").read_text().splitlines()
+    ).items():
+        monkeypatch.setenv(name, value)
+    fixture = issuance / "scenario-authorities.json"
+    monkeypatch.setenv("RATIFY_DELEGATION_PATH", str(issuance / "delegation.json"))
+    monkeypatch.setenv("RATIFY_SCENARIO_AUTHORITIES_PATH", str(fixture))
+    monkeypatch.setenv("RATIFY_RECEIVER_MCP_URL", "unused")
+    monkeypatch.setenv("RATIFY_PRESENTATION_URL", "unused")
+    monkeypatch.setenv(
+        "RATIFY_SCENARIO_AUTHORITIES_SHA256",
+        hashlib.sha256(fixture.read_bytes()).hexdigest(),
+    )
+    # Configured and untouched: the runtime starts.
+    AgentSettings.from_environment()
+
+    # The same runtime with the fixture swapped underneath it must not start.
+    payload = json.loads(fixture.read_text())
+    payload["wrong_agent_fixture_private_key"]["ed25519"] = "AA" * 22 + "=="
+    fixture.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    with pytest.raises(RuntimeError, match="artifact digest mismatch"):
+        AgentSettings.from_environment()
 
 
 def test_production_model_is_explicit_and_uses_configured_model(monkeypatch):
