@@ -58,7 +58,7 @@ jobs:
         working-directory: apps/demo-console/site
         run: |
           set -euo pipefail
-          mapfile -t scripts < <(find dist/client/_next/static -type f -name 'index-*.js' -print | sort)
+          mapfile -t scripts < <(find dist/client -type f -path '*/_next/static/chunks/index-*.js' -print | sort)
           test "${#scripts[@]}" -eq 1 || { echo "::error::expected one console index script"; exit 1; }
           echo "script=$(basename "${scripts[0]}")" >> "$GITHUB_OUTPUT"
 
