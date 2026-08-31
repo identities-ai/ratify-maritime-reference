@@ -4,12 +4,11 @@ import Image from "next/image";
 import { useState } from "react";
 
 const API = "https://maritime-api.ratifyprotocol.com/api/scenario";
+const browserClock = () => globalThis.performance.now();
 const stages = [
-  ["01", "Principal", "Delegates bounded authority"],
-  ["02", "Maritime agent", "Recognizes the work order"],
-  ["03", "External boundary", "Carries proof by reference"],
-  ["04", "Ratify receiver", "Verifies identity and constraints"],
-  ["05", "Protected handler", "Runs only after ALLOW"],
+  ["01", "Request submitted", "The browser sent a closed scenario to the public proxy"],
+  ["02", "Runtime response", "The deployed Maritime runtime returned evidence"],
+  ["03", "Decision rendered", "This page displays the response without prefilled outcomes"],
 ];
 
 type Scenario =
@@ -65,6 +64,13 @@ type Result = {
   delegation_issued_at: number;
   delegation_expires_at: number;
   timestamp: string;
+  upstream_duration_ms: number;
+  interceptor_duration_ms: number | null;
+  challenge_duration_ms: number | null;
+  proof_upload_duration_ms: number | null;
+  dispatch_duration_ms: number | null;
+  proof_build_duration_ms: number | null;
+  verification_duration_ms: number | null;
 };
 
 const deciderLabels: Record<string, string> = {
@@ -81,15 +87,18 @@ const isolationScenarios: { id: IsolationScenario; title: string; detail: string
 ];
 
 export default function Home() {
-  const [pending, setPending] = useState<Scenario | null>(null);
+  const [pending, setPending] = useState<Scenario | IsolationScenario | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [results, setResults] = useState<Partial<Record<Scenario, Result>>>({});
   const [isolationResults, setIsolationResults] = useState<Partial<Record<IsolationScenario, Result>>>({});
   const [runningSuite, setRunningSuite] = useState(false);
+  const [guidedRunning, setGuidedRunning] = useState(false);
+  const [browserDuration, setBrowserDuration] = useState<number | null>(null);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
 
   async function execute(scenario: Scenario | IsolationScenario, target: "adversarial" | "isolation" = "adversarial"): Promise<Result | null> {
+    const browserStarted = browserClock();
     setPending(scenario);
     setProgress(0);
     setError(null);
@@ -110,10 +119,11 @@ export default function Home() {
           title: "Demo limit reached",
           body: "Try again in a minute.",
         });
-        return;
+        return null;
       }
       if (!response.ok) throw new Error();
       const executed = await response.json() as Result;
+      setBrowserDuration(Math.round(browserClock() - browserStarted));
       setResult(executed);
       if (target === "isolation") setIsolationResults((current) => ({ ...current, [scenario as IsolationScenario]: executed }));
       else setResults((current) => ({ ...current, [scenario as Scenario]: executed }));
@@ -151,12 +161,22 @@ export default function Home() {
     setRunningSuite(false);
   }
 
+  async function runGuided() {
+    setGuidedRunning(true);
+    setResults({});
+    setResult(null);
+    setError(null);
+    for (const scenario of ["allow", "over_limit", "copied_certificate"] as Scenario[]) {
+      if ((await execute(scenario)) === null) break;
+    }
+    setGuidedRunning(false);
+  }
+
   const progressCopy = [
-    ["Sending the signed request", "The browser is contacting the Maritime-hosted agent."],
-    ["Waiting for the isolated runtimes", "A sleeping Maritime runtime may need several seconds to become ready."],
-    ["Waiting for receiver verification", "The agent is requesting a decision from the separately deployed Ratify receiver."],
-    ["Still waiting for verified evidence", "The result will say whether protected code ran. This page will not assume or automatically retry."],
-  ][progress];
+    ["Request submitted", "The browser is contacting the deployed Maritime runtime."],
+    ["Waiting for the runtime response", "A sleeping runtime may need several seconds to become ready."],
+    ["Still waiting", "The result will report whether protected code ran. No outcome is assumed."],
+  ][Math.min(progress, 2)];
 
   const money = (minor: number, currency: string) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100) + ` ${currency}`;
   const requested = result ? money(result.requested_amount_minor, result.currency) : "";
@@ -208,6 +228,11 @@ export default function Home() {
             <div><dt>Validity</dt><dd>Seven days; exact live expiry shown after execution</dd></div>
           </dl>
           <p className="meaning"><b>ALLOW</b> means the receiver verified the delegation and invoked protected code. <b>DENY</b> means the receiver stopped the request before that code ran.</p>
+        </div>
+
+        <div className="guided-card">
+          <div><p className="kicker">START HERE</p><h2>See the claim in three requests</h2><p>Watch one allowed action, the same agent exceed its signed ceiling, and a second runtime fail when it presents a copied certificate.</p></div>
+          <button className="run-all" onClick={runGuided} disabled={pending !== null || runningSuite || guidedRunning}>{guidedRunning ? "Running guided proof…" : "Run guided proof"}</button>
         </div>
 
         <div className="lab-head">
@@ -266,13 +291,7 @@ export default function Home() {
         {(pending || result || error) && <div className="execution" aria-live="polite">
           <div className="stages" aria-label="Executed request stages">
             {stages.map(([number, name, detail], index) => {
-              const state = result
-                ? index < 4 || (index === 4 && result.decision === "ALLOW")
-                  ? "done"
-                  : "blocked"
-                : pending && index === 0
-                  ? "active"
-                  : "";
+              const state = result ? "done" : pending && index === 0 ? "active" : "";
               return <div className={`stage ${state}`} key={name}>
               <span className="stage-number">{number}</span><div><strong>{name}</strong><small>{detail}</small></div>
               </div>;
@@ -302,10 +321,12 @@ export default function Home() {
               <div><dt>Delegation expires</dt><dd>{new Date(result.delegation_expires_at * 1000).toLocaleString()}</dd></div>
             </dl>
             <p className="counter-note">This is a receiver-wide counter shared by every demo visitor, not your session count.</p>
-            <details><summary>Technical evidence</summary><p>Deciding layer <code>{result.decided_by}</code> · Ratify verification status <code>{result.verification_status ?? "not reached"}</code> · Audience <code>{result.delegation_audience}</code> · Delegation issued {new Date(result.delegation_issued_at * 1000).toLocaleString()} · Correlation {result.correlation_id} · Executed {new Date(result.timestamp).toLocaleString()} · No keys, proof material, or private identifiers are displayed.</p></details>
+            <details><summary>Technical evidence and timings</summary><p>Deciding layer <code>{result.decided_by}</code> · Ratify verification status <code>{result.verification_status ?? "not reached"}</code> · Audience <code>{result.delegation_audience}</code> · Delegation issued {new Date(result.delegation_issued_at * 1000).toLocaleString()} · Correlation <code>{result.correlation_id}</code> · Executed {new Date(result.timestamp).toLocaleString()} · No keys, proof material, or private identifiers are displayed.</p><div className="timings"><b>Observed timings</b><span>Browser total: {browserDuration ?? "—"} ms</span><span>Proxy upstream: {result.upstream_duration_ms} ms</span><span>Agent authority path: {result.interceptor_duration_ms ?? "not emitted"} ms</span><span>Challenge: {result.challenge_duration_ms ?? "not reached"} ms</span><span>Proof upload: {result.proof_upload_duration_ms ?? "not reached"} ms</span><span>Dispatch: {result.dispatch_duration_ms ?? "not reached"} ms</span><span>Proof construction: {result.proof_build_duration_ms ?? "not reached"} ms</span><span>Receiver verification: {result.verification_duration_ms ?? "not reached"} ms</span></div></details>
           </div>}
         </div>}
       </section>
+
+      <section className="reproduce" aria-labelledby="reproduce-title"><p className="kicker">VERIFY WITHOUT TRUSTING THIS PAGE</p><h2 id="reproduce-title">Run the same 14 checks locally</h2><p>Use the published image digests and a fresh local principal. The command never contacts this deployment and does not require a Ratify credential.</p><code>python3 scripts/reproduce_gate_locally.py</code><span>Expected: 9 scenarios and 5 cross-runtime attempts reproduced from the published images.</span><a href="https://github.com/identities-ai/ratify-maritime-reference#reproduce-it-without-trusting-us" target="_blank" rel="noreferrer">Open source and reproduction instructions ↗</a></section>
 
       <section className="explainer">
         <p className="kicker">WHAT THIS PROVES</p>

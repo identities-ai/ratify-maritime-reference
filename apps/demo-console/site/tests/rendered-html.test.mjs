@@ -24,6 +24,8 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /\$501 Seattle electrical repair/);
   assert.match(html, /Allow plus eight adversarial denials/);
   assert.match(html, /Run full adversarial gate/);
+  assert.match(html, /See the claim in three requests/);
+  assert.match(html, /Run guided proof/);
   assert.match(html, /WRONG RESOURCE/);
   assert.match(html, /ALTERED OPERATION/);
   assert.match(html, /EXPIRED/);
@@ -57,7 +59,9 @@ test("server-renders the authorization lab without starter copy", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.match(page, /Shared receiver handler count/);
   assert.match(page, /receiver-wide counter shared by every demo visitor/);
-  assert.match(page, /index === 4 && result\.decision === "ALLOW"/);
+  assert.match(page, /Request submitted/);
+  assert.match(page, /upstream_duration_ms/);
+  assert.match(page, /Run the same 14 checks locally/);
   assert.match(page, /DENY_RESOURCE_MISMATCH/);
   assert.match(page, /DENY_OPERATION_MISMATCH/);
   assert.match(page, /DENY_EXPIRED/);
@@ -70,7 +74,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(page, /delegation_expires_at/);
   assert.match(page, /requested_description/);
   assert.match(page, /title: "Demo limit reached"/);
-  assert.match(page, /Waiting for the isolated runtimes/);
+  assert.match(page, /Waiting for the runtime response/);
   assert.match(page, /No automatic retry was attempted/);
   assert.match(page, /title: "Runtime did not return a verified result"/);
   assert.doesNotMatch(page, /<b>Unavailable<\/b>/);
