@@ -1,0 +1,91 @@
+name: Console CI
+
+# Verification for the demo console. This repository had no automated checks for
+# it: pull requests touching the console merged on whatever their author happened
+# to run locally, and the change that made the routed-host gate configurable
+# reached review with no test covering the new behaviour.
+#
+# The gate is the console's access control. It has no public route of its own and
+# answers only requests arriving on an allowed hostname with the router
+# credential, so a regression there exposes the console rather than breaking it,
+# which is the kind of failure a green build hides.
+#
+# This workflow does not deploy. Deployment is scoped in
+# docs/CONSOLE-WORKER-MIGRATION.md and needs its own review.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/demo-console/site/**'
+      - '.github/workflows/console-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/demo-console/site/**'
+      - '.github/workflows/console-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: console-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: apps/demo-console/site
+
+jobs:
+  verify:
+    name: Verify console
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/demo-console/site/package-lock.json
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Builds, then runs every file in tests/. The script previously named a
+      # single file, so a new test file was collected by nobody and would have
+      # passed by not running.
+      - name: Build and test
+        run: npm test
+
+      # The suite is small enough that a silent drop matters. A skipped or
+      # vanished test is a green build with less evidence behind it.
+      - name: No test may be skipped
+        run: |
+          set -euo pipefail
+          node --test tests/*.test.mjs 2>&1 | tee test.log
+          skipped=$(sed -n 's/^# skipped \([0-9]\+\)$/\1/p' test.log | tail -1)
+          todo=$(sed -n 's/^# todo \([0-9]\+\)$/\1/p' test.log | tail -1)
+          test "${skipped:-0}" = 0 || { echo "::error::${skipped} test(s) skipped"; exit 1; }
+          test "${todo:-0}" = 0 || { echo "::error::${todo} test(s) marked todo"; exit 1; }
+
+      # Wrangler's output format is parsed by deployment tooling, so an
+      # unintended major or minor change should fail here rather than surface as
+      # a deployment check that silently stops checking.
+      - name: Wrangler stays pinned
+        run: |
+          set -euo pipefail
+          declared=$(node -p "require('./package.json').devDependencies.wrangler")
+          test "$declared" = "4.127.1" || {
+            echo "::error::wrangler must be pinned exactly, found '$declared'"; exit 1;
+          }
+          installed=$(node -p "require('wrangler/package.json').version")
+          test "$installed" = "4.127.1" || {
+            echo "::error::installed wrangler is $installed"; exit 1;
+          }
+
+      # No dependency-advisory gate yet, deliberately. The console currently has
+      # high-severity advisories that `npm audit fix` cannot resolve without a
+      # forced major upgrade. Adding a gate that is red on its first run trains
+      # people to ignore red. Clear the advisories in their own change, then add
+      # the gate, which is the order the catalog repository used.
