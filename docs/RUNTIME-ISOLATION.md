@@ -74,8 +74,16 @@ two-runtime test, this reproduction, and the deployed gate all read it.
 
 `evidence/runtime-isolation-results.json` records a run against the deployment.
 Its `disclosures` object states what it does not establish: runtime identifiers
-are operator-supplied and unattested by Maritime, the handler count is
-receiver-wide, and the checksum is an integrity check rather than a signature.
+are operator-supplied, the handler count is receiver-wide, and the checksum is
+an integrity check rather than a signature.
+
+It also states what a digest can and cannot bind. Maritime converts an image to
+a root filesystem before boot and performs no digest verification at launch, so
+the recorded digest binds our published build to its source revision in the
+public registry rather than binding a running runtime to an image. Maritime can
+attest the runtime identifiers and the image reference each runtime launched
+from, which is a narrower and different fact; `maritime_attestation` carries
+that confirmation when it has been given and is null until then.
 
 Both runtimes and the receiver are operated by Ratify. This demonstrates
 isolation between separately delegated agents, not between organizations.
