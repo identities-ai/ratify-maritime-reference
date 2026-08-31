@@ -5,6 +5,7 @@ import handler from "vinext/server/app-router-entry";
 interface Env {
   ASSETS: Fetcher;
   LABS_ROUTER_TOKEN: string;
+  CONSOLE_ALLOWED_HOSTNAMES?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -16,6 +17,14 @@ interface Env {
 
 const PROVIDER_HOST = "ratify-maritime-lab.chuksy0x01.chatgpt.site";
 const ROUTE_HEADER = "X-Ratify-Labs-Route";
+
+function allowedHosts(configured: string | undefined): Set<string> {
+  const hosts = (configured ?? PROVIDER_HOST)
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(hosts);
+}
 
 async function hasValidRouteCredential(request: Request, secret: string): Promise<boolean> {
   if (!secret || secret.length < 32) return false;
@@ -51,7 +60,8 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    const routed = url.hostname === PROVIDER_HOST && await hasValidRouteCredential(request, env.LABS_ROUTER_TOKEN);
+    const routed = allowedHosts(env.CONSOLE_ALLOWED_HOSTNAMES).has(url.hostname.toLowerCase())
+      && await hasValidRouteCredential(request, env.LABS_ROUTER_TOKEN);
     if (!local && !routed) {
       return new Response("Not found", {
         status: 404,
