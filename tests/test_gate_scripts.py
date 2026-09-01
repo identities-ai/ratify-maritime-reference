@@ -39,6 +39,8 @@ def _load(name: str):
     "reproduce_gate_locally",
     "measure_decision_latency",
     "issue_demo_authority",
+    "rotate_deployment_authority",
+    "run_acceptance_gate",
 ])
 def test_every_gate_script_imports(name):
     _load(name)
@@ -166,3 +168,31 @@ def test_live_gate_checks_are_built_from_the_recorded_deployment():
     # Results go to scratch, never over the published artifacts.
     assert any(".acceptance" in part for part in arguments)
     assert not any("evidence/" in part for part in arguments)
+
+
+def test_rotation_writes_before_it_moves_the_expected_digest():
+    """Order is the safety property, so it is asserted rather than assumed.
+
+    Setting the digest before the volume matches, or restarting between the
+    two, leaves a runtime that refuses to start. The script must confirm every
+    artifact on its volume first.
+    """
+    source = (SCRIPTS / "rotate_deployment_authority.py").read_text()
+    write_index = source.index("_write(client, runtime.agent_id")
+    confirm_index = source.index("_observed_digest(runtime.name, path)")
+    digest_index = source.index("RATIFY_DELEGATION_SHA256\": next(")
+    restart_index = source.index("_restart(runtime.name, arguments.image)")
+    assert write_index < confirm_index < digest_index < restart_index
+
+    # The digest is read back from inside the runtime, because hashing the
+    # local copy would only prove the file we already had.
+    assert "maritime\", \"exec\"" in source
+
+
+def test_rotation_never_writes_a_private_key_to_the_volume():
+    """Only public material belongs on the volume; keys stay in the runtime env."""
+    source = (SCRIPTS / "rotate_deployment_authority.py").read_text()
+    assert "delegation.json" in source
+    assert "scenario-authorities.json" in source
+    for private in ("agent.env", "principal.json", "PRIVATE", "receiver.env"):
+        assert private not in source, private

@@ -448,13 +448,20 @@ def test_runtime_images_are_pinned_minimal_non_root_and_health_checked():
         assert "CMD [\"/app/.venv/bin/python\"" in content
         assert "CMD /app/.venv/bin/python -c" in content
 
+    # The image carries no authority material. Both runtimes read their
+    # delegation and fixture from the persistent volume, so rotation is a write
+    # and a restart, and the runtime digest check guards a file that can change.
+    # A rebuilt image that starts baking again would silently restore the old
+    # arrangement, so the absence is asserted rather than assumed.
     agent_dockerfile = dockerfiles[0].read_text()
-    assert "--mount=type=secret,id=ratify_delegation_b64" in agent_dockerfile
-    assert "--mount=type=secret,id=ratify_scenario_authorities_gzip_b64" in agent_dockerfile
-    assert "gzip --decompress" in agent_dockerfile
-    assert "RATIFY_DELEGATION_SHA256" in agent_dockerfile
-    assert "RATIFY_SCENARIO_AUTHORITIES_SHA256" in agent_dockerfile
-    assert "RATIFY_DELEGATION_PATH=/app/deployment/delegation.json" in agent_dockerfile
+    for baked in (
+        "ratify_delegation_b64",
+        "ratify_scenario_authorities_gzip_b64",
+        "/app/deployment",
+        "RATIFY_DELEGATION_PATH=",
+        "RATIFY_SCENARIO_AUTHORITIES_PATH=",
+    ):
+        assert baked not in agent_dockerfile, baked
 
 
 def _unused_port() -> int:
