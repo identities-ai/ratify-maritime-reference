@@ -1,0 +1,17 @@
+# Keep workflow actions current.
+#
+# Added after checkout and setup-node were found still pinned to v4, whose Node
+# 20 runtime is deprecated: the runner had begun forcing them onto Node 24 and
+# warning on every run. Nothing was watching for that, so a deprecation
+# announced in advance surfaced as a warning nobody owned.
+#
+# Actions only. The npm tree moves far more often, and a flood of dependency
+# pull requests is how a repository learns to ignore them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
