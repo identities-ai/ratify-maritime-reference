@@ -196,3 +196,14 @@ def test_rotation_never_writes_a_private_key_to_the_volume():
     assert "scenario-authorities.json" in source
     for private in ("agent.env", "principal.json", "PRIVATE", "receiver.env"):
         assert private not in source, private
+
+
+def test_isolation_gate_derives_subjects_rather_than_accepting_them():
+    """A transcribed identifier reached the published evidence wrong by one
+    character. Deriving it from the delegation removes the whole error class."""
+    source = (SCRIPTS / "run_runtime_isolation_gate.py").read_text()
+    assert "--primary-delegation" in source
+    assert "--secondary-delegation" in source
+    assert "--primary-agent-subject" not in source
+    assert "--secondary-agent-subject" not in source
+    assert "decode_delegation_cert" in source

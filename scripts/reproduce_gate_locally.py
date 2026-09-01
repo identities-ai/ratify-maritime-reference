@@ -37,7 +37,7 @@ ISOLATION_EXPECTATIONS = (
 
 DEFAULT_AGENT_IMAGE = (
     "ghcr.io/identities-ai/ratify-maritime-agent"
-    "@sha256:e2ca504900b30ad1d132b8fa0aefa3fe2440d3cde96033f02c1f60226b2de349"
+    "@sha256:f0ad923ff5d1241531f5d96be373e245aef9b910f5153fc47716cd11dece38be"
 )
 DEFAULT_RECEIVER_IMAGE = (
     "ghcr.io/identities-ai/ratify-maritime-receiver"

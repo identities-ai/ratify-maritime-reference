@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+from ratify_protocol import decode_delegation_cert
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 EXPECTATIONS = REPOSITORY / "docs" / "runtime-isolation-expectations.json"
@@ -101,19 +102,27 @@ def _execute(
 
     The deployment intermittently stalls beyond the proxy's budget, including
     on traffic that performs no verification work. That is a recorded platform
-    property rather than an authorization result, so a 502 is retried and the
-    retry count is kept in the artifact. Any decision the receiver actually
+    property rather than an authorization result. A stall surfaces either as a
+    502 from the proxy or as a transport timeout, so both are retried and the
+    count is kept in the artifact. Any decision the receiver actually
     returns is final and is never retried.
     """
     transient = 0
     for remaining in range(attempts - 1, -1, -1):
         started = time.perf_counter()
-        response = httpx.post(
-            endpoint,
-            headers={"Content-Type": "application/json", "Origin": origin},
-            json={"scenario": scenario},
-            timeout=90,
-        )
+        try:
+            response = httpx.post(
+                endpoint,
+                headers={"Content-Type": "application/json", "Origin": origin},
+                json={"scenario": scenario},
+                timeout=90,
+            )
+        except (httpx.TimeoutException, httpx.TransportError):
+            if not remaining:
+                raise
+            transient += 1
+            time.sleep(15)
+            continue
         elapsed = (time.perf_counter() - started) * 1000
         if response.status_code == 502 and remaining:
             transient += 1
@@ -147,8 +156,11 @@ def main() -> int:
     parser.add_argument("--primary-runtime-id", required=True)
     parser.add_argument("--secondary-runtime-id", required=True)
     parser.add_argument("--receiver-runtime-id", required=True)
-    parser.add_argument("--primary-agent-subject", required=True)
-    parser.add_argument("--secondary-agent-subject", required=True)
+    # Taken as delegation files rather than identifier strings. A transcribed
+    # subject reached the published evidence once, wrong by one character, and
+    # nothing caught it because the only check was that the two differed.
+    parser.add_argument("--primary-delegation", type=Path, required=True)
+    parser.add_argument("--secondary-delegation", type=Path, required=True)
     parser.add_argument("--worker-version", required=True)
     parser.add_argument(
         "--maritime-attestation",
@@ -160,7 +172,17 @@ def main() -> int:
     parser.add_argument("--interval", type=float, default=8.0)
     arguments = parser.parse_args()
 
-    if arguments.primary_agent_subject == arguments.secondary_agent_subject:
+    try:
+        primary_subject = decode_delegation_cert(
+            arguments.primary_delegation.read_text(encoding="utf-8")
+        ).subject_id
+        secondary_subject = decode_delegation_cert(
+            arguments.secondary_delegation.read_text(encoding="utf-8")
+        ).subject_id
+    except (OSError, ValueError) as error:
+        print(f"could not read a delegation: {error}", file=sys.stderr)
+        return 3
+    if primary_subject == secondary_subject:
         print("the two runtimes must carry different subjects", file=sys.stderr)
         return 3
 
@@ -243,8 +265,8 @@ def main() -> int:
             "primary_runtime_id": arguments.primary_runtime_id,
             "secondary_runtime_id": arguments.secondary_runtime_id,
             "receiver_runtime_id": arguments.receiver_runtime_id,
-            "primary_agent_subject": arguments.primary_agent_subject,
-            "secondary_agent_subject": arguments.secondary_agent_subject,
+            "primary_agent_subject": primary_subject,
+            "secondary_agent_subject": secondary_subject,
             "worker_version": arguments.worker_version,
             "runtimes_share_one_image": True,
             "maritime_attestation": arguments.maritime_attestation,

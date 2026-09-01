@@ -109,8 +109,10 @@ def _live_gate_checks() -> list[Check]:
                 "--primary-runtime-id", i["primary_runtime_id"],
                 "--secondary-runtime-id", i["secondary_runtime_id"],
                 "--receiver-runtime-id", i["receiver_runtime_id"],
-                "--primary-agent-subject", i["primary_agent_subject"],
-                "--secondary-agent-subject", i["secondary_agent_subject"],
+                "--primary-delegation", str(Path.home() / ".ratify"
+                    / "deployed-material" / "delegation.json"),
+                "--secondary-delegation", str(Path.home() / ".ratify"
+                    / "deployed-material" / "delegation-b.json"),
                 "--worker-version", i["worker_version"],
             ],
             REPOSITORY,
