@@ -9,10 +9,6 @@ permissions:
 
 env:
   SOURCE_REVISION: 0aa8a2aa0c9fb2ff51905e16fcb4c6b6f7465029
-  DELEGATION_SHA256: e5d881400bf1e88315406a42ff3661be360cfb1b7b49052e63f8ba21829135ff
-  SCENARIO_AUTHORITIES_SHA256: 5b80ecd72af09fa86e1d697af137aeb5ede88a6bca788202bfc5fe9423e86f09
-  SECOND_DELEGATION_SHA256: b46d8c578ac2823e7a14eae43652bb581356c4a3e66715876d0b979ddd907f3b
-  PEER_AUTHORITIES_SHA256: cb6588feb0a3d7ddaf3b6baca9a00e9f7144fe0fd32ed6631e109814904126e0
   IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:0aa8a2a
 
 jobs:
@@ -24,50 +20,25 @@ jobs:
         with:
           ref: ${{ env.SOURCE_REVISION }}
 
-      - name: Require deployment delegation
-        env:
-          RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
-          RATIFY_SCENARIO_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 }}
-          RATIFY_DEPLOYMENT_DELEGATION_B_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B_B64 }}
-          RATIFY_PEER_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_PEER_AUTHORITIES_GZIP_B64 }}
-        run: |
-          test -n "$RATIFY_DEPLOYMENT_DELEGATION_B64"
-          test -n "$RATIFY_SCENARIO_AUTHORITIES_GZIP_B64"
-          test -n "$RATIFY_DEPLOYMENT_DELEGATION_B_B64"
-          test -n "$RATIFY_PEER_AUTHORITIES_GZIP_B64"
-
       - name: Authenticate to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build reviewed agent
-        env:
-          RATIFY_DEPLOYMENT_DELEGATION_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B64 }}
-          RATIFY_SCENARIO_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 }}
-          RATIFY_DEPLOYMENT_DELEGATION_B_B64: ${{ secrets.RATIFY_DEPLOYMENT_DELEGATION_B_B64 }}
-          RATIFY_PEER_AUTHORITIES_GZIP_B64: ${{ secrets.RATIFY_PEER_AUTHORITIES_GZIP_B64 }}
         run: |
           docker build \
             --no-cache \
-            --secret id=ratify_delegation_b64,env=RATIFY_DEPLOYMENT_DELEGATION_B64 \
-            --secret id=ratify_scenario_authorities_gzip_b64,env=RATIFY_SCENARIO_AUTHORITIES_GZIP_B64 \
-            --secret id=ratify_delegation_b_b64,env=RATIFY_DEPLOYMENT_DELEGATION_B_B64 \
-            --secret id=ratify_peer_authorities_gzip_b64,env=RATIFY_PEER_AUTHORITIES_GZIP_B64 \
-            --build-arg RATIFY_DELEGATION_SHA256="$DELEGATION_SHA256" \
-            --build-arg RATIFY_SCENARIO_AUTHORITIES_SHA256="$SCENARIO_AUTHORITIES_SHA256" \
-            --build-arg RATIFY_SECOND_DELEGATION_SHA256="$SECOND_DELEGATION_SHA256" \
-            --build-arg RATIFY_PEER_AUTHORITIES_SHA256="$PEER_AUTHORITIES_SHA256" \
             --label org.opencontainers.image.source=https://github.com/identities-ai/ratify-maritime-reference \
             --label org.opencontainers.image.revision="$SOURCE_REVISION" \
-            --label com.ratifyprotocol.delegation.sha256="$DELEGATION_SHA256" \
             --platform linux/amd64 \
             -t "$IMAGE" .
 
-      - name: Verify embedded delegation
+      - name: The image must carry no authority material
         run: |
-          test "$(docker run --rm --entrypoint sha256sum "$IMAGE" /app/deployment/delegation.json | cut -d ' ' -f 1)" = "$DELEGATION_SHA256"
-          test "$(docker run --rm --entrypoint sha256sum "$IMAGE" /app/deployment/scenario-authorities.json | cut -d ' ' -f 1)" = "$SCENARIO_AUTHORITIES_SHA256"
-          test "$(docker run --rm --entrypoint sha256sum "$IMAGE" /app/deployment/delegation-b.json | cut -d ' ' -f 1)" = "$SECOND_DELEGATION_SHA256"
-          test "$(docker run --rm --entrypoint sha256sum "$IMAGE" /app/deployment/scenario-authorities-b.json | cut -d ' ' -f 1)" = "$PEER_AUTHORITIES_SHA256"
+          set -euo pipefail
+          if docker run --rm --entrypoint sh "$IMAGE" -c 'ls /app/deployment' 2>/dev/null; then
+            echo "::error::the image still bakes authority material"; exit 1
+          fi
+          echo "image carries no authority material"
 
       - name: Publish immutable revision tag
         run: docker push "$IMAGE"
