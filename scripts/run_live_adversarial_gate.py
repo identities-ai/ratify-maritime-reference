@@ -139,17 +139,25 @@ def _execute(
 
     The deployment intermittently stalls beyond the proxy's budget, including on
     traffic that performs no verification work. That is a recorded platform
-    property rather than an authorization result, so a 502 is retried and the
+    property rather than an authorization result. A stall surfaces either as a
+    502 from the proxy or as a transport timeout, so both are retried and the
     count is kept. Any decision the receiver returns is final and never retried.
     """
     transient = 0
     for remaining in range(attempts - 1, -1, -1):
-        response = httpx.post(
-            endpoint,
-            headers={"Content-Type": "application/json", "Origin": origin},
-            json={"scenario": scenario},
-            timeout=90,
-        )
+        try:
+            response = httpx.post(
+                endpoint,
+                headers={"Content-Type": "application/json", "Origin": origin},
+                json={"scenario": scenario},
+                timeout=90,
+            )
+        except (httpx.TimeoutException, httpx.TransportError):
+            if not remaining:
+                raise
+            transient += 1
+            time.sleep(15)
+            continue
         if response.status_code == 502 and remaining:
             transient += 1
             time.sleep(15)
