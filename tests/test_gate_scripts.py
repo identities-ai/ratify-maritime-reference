@@ -189,13 +189,44 @@ def test_rotation_writes_before_it_moves_the_expected_digest():
     assert "maritime\", \"exec\"" in source
 
 
-def test_rotation_never_writes_a_private_key_to_the_volume():
-    """Only public material belongs on the volume; keys stay in the runtime env."""
+def test_rotation_writes_no_authority_bearing_secret_to_the_volume():
+    """The volume carries public certificates and one deliberate test key.
+
+    It is not true that the volume holds nothing private: the adversarial
+    fixture contains wrong_agent_fixture_private_key, a signing key that is
+    published on purpose so the wrong-agent case is inspectable. Its
+    certificate names a subject no caller maps to, so it authorizes nothing,
+    and the deployed wrong-agent and copied-certificate scenarios are both
+    denied.
+
+    What must never reach a volume is authority-bearing: an agent's own signing
+    key, the principal's root key, or a transport credential. Those live in the
+    runtime environment, and the rotation script only ever writes the two
+    artifacts named here.
+    """
     source = (SCRIPTS / "rotate_deployment_authority.py").read_text()
-    assert "delegation.json" in source
-    assert "scenario-authorities.json" in source
-    for private in ("agent.env", "principal.json", "PRIVATE", "receiver.env"):
-        assert private not in source, private
+    assert '"delegation.json"' in source
+    assert '"scenario-authorities.json"' in source
+    for authority_bearing in (
+        "agent.env", "agent-b.env", "receiver.env", "principal.json",
+        "RATIFY_AGENT_ED25519_PRIVATE_B64", "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64",
+        "RATIFY_RECEIVER_TOKEN", "RATIFY_DEMO_TOKEN", "root_private_key",
+    ):
+        assert authority_bearing not in source, authority_bearing
+
+
+def test_only_the_first_runtime_carries_the_adversarial_fixture_key():
+    """The second runtime needs a peer certificate, not a signing key.
+
+    Each runtime should carry the least material its scenarios require, so the
+    fixture key belongs only where the wrong-agent case runs.
+    """
+    issuance = SCRIPTS.parent / "src" / "maritime_ratify" / "deployment_issuance.py"
+    source = issuance.read_text()
+    peer = source[source.index("def _peer_authorities_wire"):]
+    peer = peer[:peer.index("def _scenario_authorities_wire")]
+    assert "peer_delegation" in peer
+    assert "private" not in peer.lower().replace("private key, which is what", "")
 
 
 def test_isolation_gate_derives_subjects_rather_than_accepting_them():
