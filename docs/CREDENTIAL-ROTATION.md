@@ -16,8 +16,27 @@ persistent volume, which survives a redeploy.
 |---|---|
 | Delegation and fixture | `/data/ratify/` on each runtime's persistent volume |
 | Expected digests | `RATIFY_DELEGATION_SHA256`, `RATIFY_SCENARIO_AUTHORITIES_SHA256` |
-| Private agent key | environment only, never on the volume and never in the image |
+| Agent signing key, transport credentials | environment only, never on a volume and never in an image |
+| Principal root key | outside the deployment entirely |
 | Image | carries no authority material at all |
+
+### What the volume holds, precisely
+
+The first runtime's fixture contains `wrong_agent_fixture_private_key`. That is
+a signing key, and it is on the volume on purpose. It exists so the wrong-agent
+case is inspectable rather than asserted, its certificate names a subject no
+configured caller maps to, and the deployed wrong-agent and copied-certificate
+scenarios are both denied. It was equally readable when the fixture was baked
+into the published image, so moving it to the volume changed nothing about who
+can see it.
+
+The second runtime's fixture holds only the first runtime's public certificate,
+with no key of any kind, because the cross-runtime cases need a certificate to
+present rather than a key to sign with.
+
+So the volume is not free of private bytes. It is free of anything that can
+authorize an action: no agent's own signing key, no transport credential, no
+root key.
 
 The runtime reads each artifact once and hashes the bytes it read. A mismatch
 stops startup. The digest lives in the environment and the artifact lives on

@@ -97,6 +97,11 @@ check. The in-process `/chat` limiter is suitable only for the bounded public
 demonstration; it resets on restart and is not shared across replicas.
 Production exposure still requires ingress-level rate and body limits.
 
+The adversarial fixture now lives on each runtime's persistent volume rather
+than baked into the image, and is verified at startup against a digest held in
+the runtime environment. Writing the volume alone therefore cannot change what
+a runtime accepts.
+
 The wrong-agent acceptance fixture includes a deliberately inspectable signing
 key in the adversarial fixture bundle. Its certificate names a different
 subject from the receiver's configured agent, so it cannot authorize the
