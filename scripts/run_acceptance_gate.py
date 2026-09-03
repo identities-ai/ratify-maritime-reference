@@ -59,6 +59,40 @@ CHECKS = [
 ]
 
 
+DELEGATION_CACHE = Path.home() / ".ratify" / "deployed-material"
+
+
+def _resolved_delegations(isolation: dict) -> dict[str, Path] | None:
+    """Locate a delegation for each runtime, preferring what the runtime uses.
+
+    The isolation gate derives each agent's subject from its delegation rather
+    than accepting a transcribed identifier. Pointing that at an untracked local
+    directory made the gate depend on a copy that can drift or simply not exist
+    on another machine, so a missing file is repaired by reading the delegation
+    the runtime is actually serving from its volume.
+    """
+    wanted = {
+        "delegation.json": isolation["primary_runtime_id"],
+        "delegation-b.json": isolation["secondary_runtime_id"],
+    }
+    resolved: dict[str, Path] = {}
+    for name, runtime_id in wanted.items():
+        local = DELEGATION_CACHE / name
+        if local.is_file():
+            resolved[name] = local
+            continue
+        agent = subprocess.run(
+            ["maritime", "exec", runtime_id, "cat", "/data/ratify/delegation.json"],
+            capture_output=True, text=True,
+        )
+        if agent.returncode != 0 or not agent.stdout.strip():
+            return None
+        DELEGATION_CACHE.mkdir(parents=True, exist_ok=True)
+        local.write_text(agent.stdout.strip(), encoding="utf-8")
+        resolved[name] = local
+    return resolved
+
+
 def _live_gate_checks() -> list[Check]:
     """Re-execute both deployed gates against the deployment on record.
 
@@ -81,6 +115,16 @@ def _live_gate_checks() -> list[Check]:
     except (OSError, json.JSONDecodeError):
         return []
     a, i = adversarial["deployment"], isolation["deployment"]
+    delegations = _resolved_delegations(i)
+    if delegations is None:
+        print(
+            "  unavailable  Live gates: no delegation for the recorded runtimes.\n"
+            f"               Place delegation.json and delegation-b.json in "
+            f"{DELEGATION_CACHE},\n"
+            "               or authenticate the maritime CLI so they can be read "
+            "from the runtimes.",
+        )
+        return []
     scratch = REPOSITORY / ".acceptance"
     return [
         Check(
@@ -109,10 +153,8 @@ def _live_gate_checks() -> list[Check]:
                 "--primary-runtime-id", i["primary_runtime_id"],
                 "--secondary-runtime-id", i["secondary_runtime_id"],
                 "--receiver-runtime-id", i["receiver_runtime_id"],
-                "--primary-delegation", str(Path.home() / ".ratify"
-                    / "deployed-material" / "delegation.json"),
-                "--secondary-delegation", str(Path.home() / ".ratify"
-                    / "deployed-material" / "delegation-b.json"),
+                "--primary-delegation", str(delegations["delegation.json"]),
+                "--secondary-delegation", str(delegations["delegation-b.json"]),
                 "--worker-version", i["worker_version"],
             ],
             REPOSITORY,
