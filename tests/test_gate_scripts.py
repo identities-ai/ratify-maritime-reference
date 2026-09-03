@@ -140,14 +140,25 @@ def test_acceptance_gate_detects_stale_evidence(monkeypatch, tmp_path):
     assert "does not default to the deployed agent image" in detail
 
 
-def test_live_gate_checks_are_built_from_the_recorded_deployment():
+def test_live_gate_checks_are_built_from_the_recorded_deployment(
+    monkeypatch, tmp_path
+):
     """The live gates must target the deployment the evidence describes.
 
     Hardcoding the arguments would let the gate pass against a deployment the
     published evidence no longer describes, which is the drift this repository
     keeps finding.
+
+    The delegations are stubbed so this asserts how the checks are built rather
+    than whether this machine happens to hold a cached copy or an authenticated
+    CLI. It failed in CI for exactly that reason.
     """
     gate = _load("run_acceptance_gate")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    for name in ("delegation.json", "delegation-b.json"):
+        (cache / name).write_text("wire")
+    monkeypatch.setattr(gate, "DELEGATION_CACHE", cache)
     isolation = json.loads(
         (SCRIPTS.parent / "evidence" / "runtime-isolation-results.json")
         .read_text(encoding="utf-8")
