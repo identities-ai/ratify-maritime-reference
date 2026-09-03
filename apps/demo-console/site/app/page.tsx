@@ -5,6 +5,9 @@ import { useState } from "react";
 
 const API = "https://maritime-api.ratifyprotocol.com/api/scenario";
 const REQUEST_TIMEOUT_MS = 75_000;
+// The three the guided proof runs, named once so the runner and the summary
+// cannot describe different things.
+const GUIDED_SCENARIOS = ["allow", "over_limit", "copied_certificate"] as const;
 const browserClock = () => globalThis.performance.now();
 const stages = [
   ["01", "Request submitted", "The browser sent a closed scenario to the public proxy"],
@@ -94,6 +97,10 @@ export default function Home() {
   const [results, setResults] = useState<Partial<Record<Scenario, Result>>>({});
   const [isolationResults, setIsolationResults] = useState<Partial<Record<IsolationScenario, Result>>>({});
   const [runningSuite, setRunningSuite] = useState(false);
+  // Which run produced the results on screen. Without it a guided run of three
+  // scenarios opened the nine row gate table, leaving six rows on "Waiting"
+  // for good, which reads as the full gate having started and stalled.
+  const [suite, setSuite] = useState<"guided" | "full" | "single" | null>(null);
   const [guidedRunning, setGuidedRunning] = useState(false);
   const [browserDuration, setBrowserDuration] = useState<number | null>(null);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
@@ -150,6 +157,7 @@ export default function Home() {
 
   async function run(scenario: Scenario) {
     setResults({});
+    setSuite("single");
     await execute(scenario);
   }
 
@@ -159,6 +167,7 @@ export default function Home() {
 
   async function runAll() {
     setRunningSuite(true);
+    setSuite("full");
     setResults({});
     setResult(null);
     setError(null);
@@ -171,10 +180,11 @@ export default function Home() {
 
   async function runGuided() {
     setGuidedRunning(true);
+    setSuite("guided");
     setResults({});
     setResult(null);
     setError(null);
-    for (const scenario of ["allow", "over_limit", "copied_certificate"] as Scenario[]) {
+    for (const scenario of GUIDED_SCENARIOS) {
       if ((await execute(scenario)) === null) break;
     }
     setGuidedRunning(false);
@@ -251,8 +261,8 @@ export default function Home() {
 
         <div className="lab-head">
           <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus eight adversarial denials</h2></div>
-          <button className="run-all" onClick={runAll} disabled={busy}>
-            {runningSuite ? `Running ${Object.keys(results).length + 1} of 9…` : "Run full adversarial gate →"}
+          <button className="run-all secondary" onClick={runAll} disabled={busy}>
+            {runningSuite ? `Running ${Object.keys(results).length + 1} of 9…` : "Run all nine →"}
           </button>
         </div>
         <p className="harness-note">Every scenario dispatches a fixed, enumerated action. This public demo runs a deterministic tool-call harness in place of a reasoning model, because the model is not the security decision. The receiver reaches its decision without trusting the prompt, the model, or the agent&rsquo;s transport credential.</p>
@@ -279,7 +289,25 @@ export default function Home() {
           })}
         </div>
 
-        {Object.keys(results).length > 1 && <section className="gate-results" aria-labelledby="gate-results-title">
+        {suite === "guided" && Object.keys(results).length > 0 && <section className="gate-results" aria-labelledby="guided-results-title">
+          <div><p className="kicker">GUIDED PROOF</p><h3 id="guided-results-title">Three requests, one claim</h3></div>
+          <ol>
+            {GUIDED_SCENARIOS.map((id, index) => {
+              const scenario = scenarios.find((candidate) => candidate.id === id)!;
+              const executed = results[id];
+              return <li key={id}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <div><b>{scenario.tag}</b><small>{executed ? executed.reason : pending === id ? "Running" : "Waiting"}</small></div>
+                <strong className={executed && passed(scenario, executed) ? "pass" : ""}>
+                  {executed ? (passed(scenario, executed) ? "PASS" : "CHECK") : "—"}
+                </strong>
+              </li>;
+            })}
+          </ol>
+          <p>These three ran. The other six adversarial cases have not, and are listed above as unrun until you choose them.</p>
+        </section>}
+
+        {suite === "full" && Object.keys(results).length > 0 && <section className="gate-results" aria-labelledby="gate-results-title">
           <div><p className="kicker">EXECUTED EVIDENCE</p><h3 id="gate-results-title">Adversarial gate results</h3></div>
           <ol>
             {scenarios.map((scenario, index) => {

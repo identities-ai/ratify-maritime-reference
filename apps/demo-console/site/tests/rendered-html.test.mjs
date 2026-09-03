@@ -23,7 +23,8 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /\$420 Seattle electrical repair/);
   assert.match(html, /\$501 Seattle electrical repair/);
   assert.match(html, /Allow plus eight adversarial denials/);
-  assert.match(html, /Run full adversarial gate/);
+  assert.match(html, /Run all nine/);
+  assert.match(html, /Run guided proof/);
   assert.match(html, /See the claim in three requests/);
   assert.match(html, /Run guided proof/);
   assert.match(html, /WRONG RESOURCE/);
@@ -141,4 +142,24 @@ test("every control shares one busy condition", async () => {
   const conditions = [...source.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1]);
   assert.ok(conditions.length >= 4, "expected the page to disable its controls");
   assert.deepEqual([...new Set(conditions)], ["busy"]);
+});
+
+test("the guided proof and the full gate are distinct actions", async () => {
+  // Both wrote into one results map, so a guided run of three scenarios opened
+  // the nine row gate table and left six rows on "Waiting" for good. That reads
+  // as the full gate having started and stalled.
+  const source = await readFile(
+    new URL("../app/page.tsx", import.meta.url), "utf8",
+  );
+  assert.match(source, /suite === "guided"/);
+  assert.match(source, /suite === "full"/);
+  assert.doesNotMatch(
+    source, /Object\.keys\(results\)\.length > 1 &&/,
+    "results count alone must not decide which summary is shown",
+  );
+  // The guided runner and its summary read one list, so they cannot disagree
+  // about which scenarios ran.
+  const guided = source.match(/GUIDED_SCENARIOS = \[([^\]]*)\]/);
+  assert.ok(guided, "guided scenarios must be named once");
+  assert.equal(guided[1].split(",").filter((part) => part.trim()).length, 3);
 });
