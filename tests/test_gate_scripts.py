@@ -238,3 +238,45 @@ def test_isolation_gate_derives_subjects_rather_than_accepting_them():
     assert "--primary-agent-subject" not in source
     assert "--secondary-agent-subject" not in source
     assert "decode_delegation_cert" in source
+
+
+def test_live_gates_report_rather_than_fail_without_a_delegation(monkeypatch, tmp_path):
+    """A missing local copy must not read as a failing deployment.
+
+    The isolation gate derives each subject from a delegation. Pointing that at
+    an untracked directory made the gate depend on a copy that can drift or be
+    absent on another machine, where the failure looked like the deployment was
+    broken rather than the checkout being incomplete.
+    """
+    gate = _load("run_acceptance_gate")
+    monkeypatch.setattr(gate, "DELEGATION_CACHE", tmp_path / "empty")
+
+    def unavailable(*args, **kwargs):
+        class Failed:
+            returncode = 1
+            stdout = ""
+        return Failed()
+
+    monkeypatch.setattr(gate.subprocess, "run", unavailable)
+    assert gate._live_gate_checks() == []
+
+
+def test_live_gates_recover_a_delegation_from_the_runtime(monkeypatch, tmp_path):
+    """What the runtime serves is more authoritative than a local copy."""
+    gate = _load("run_acceptance_gate")
+    cache = tmp_path / "cache"
+    monkeypatch.setattr(gate, "DELEGATION_CACHE", cache)
+
+    def served(command, **kwargs):
+        class Served:
+            returncode = 0
+            stdout = "wire-for-" + command[2]
+        assert command[:2] == ["maritime", "exec"]
+        assert command[3:] == ["cat", "/data/ratify/delegation.json"]
+        return Served()
+
+    monkeypatch.setattr(gate.subprocess, "run", served)
+    checks = gate._live_gate_checks()
+    assert len(checks) == 2
+    assert (cache / "delegation.json").read_text().startswith("wire-for-")
+    assert (cache / "delegation-b.json").read_text().startswith("wire-for-")
