@@ -123,11 +123,15 @@ application logs are stale and cannot yet support deployed log-leak inspection.
 Demo delegations expire after seven days and are renewed on day five from the
 principal-controlled artifact. Renewal preserves the issuer, subject, and
 authority bounds and replaces only the signed delegation in the agent runtime.
-Maritime's environment injection corrupts the current hybrid certificate above
-its working payload size, and its custom-file deployment API failed during the
-first live deployment. The demo image therefore receives the public signed
-delegation through a BuildKit secret during CI; private keys remain runtime
-secrets. Renewal requires a new immutable agent image.
+The delegation and adversarial fixture are written to each runtime's
+`/data/ratify/` persistent volume through Maritime's file API. Expected SHA-256
+digests remain in runtime environment configuration; startup hashes the files
+it reads and fails closed on a mismatch. The image therefore carries no
+authority material, and renewal is a write, digest update, and restart rather
+than an image rebuild. Agent signing keys and transport credentials remain
+runtime secrets. The first runtime's negative-test fixture intentionally
+contains a non-authorizing signing key; it is test material, not deployment
+authority.
 
 Starlette buffers an authenticated upload before the application checks its
 size. The deployed ingress must enforce a body limit. MCP discovery is public,
