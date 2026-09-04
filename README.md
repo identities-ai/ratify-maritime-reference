@@ -143,11 +143,14 @@ runtime configuration. Import `receiver.env` only into the receiver, then add
 only into the agent, then add the assigned receiver's
 `RATIFY_RECEIVER_MCP_URL` and `RATIFY_PRESENTATION_URL`. Maritime injects
 `PORT` into both runtimes. `principal.json` must remain outside Maritime and
-must never be committed, uploaded, or copied into either runtime. The public,
-signature-protected `delegation.json` is injected into the immutable agent
-image during its reviewed CI build because Maritime's runtime configuration is
-not suitable for the large hybrid certificate. Renewal emits a replacement
-`delegation.json` and public manifest, followed by a new agent image.
+must never be committed, uploaded, or copied into either runtime. The
+delegation and adversarial fixture are written to each runtime's
+`/data/ratify/` persistent volume through the Maritime file API. Each runtime
+receives the expected SHA-256 digests through environment configuration and
+fails closed during startup if the files do not match. Agent signing keys and
+transport credentials remain runtime secrets, and the image carries no
+authority material. Renewal is therefore a write, digest update, and restart
+rather than an image rebuild.
 
 ## Proof carrier
 
