@@ -24,6 +24,7 @@ from ratify_protocol import (
 
 from .authority import issue_bounded_delegation
 from .profile import (
+    VOLUME_DIRECTORY,
     DEFAULT_CATEGORY,
     DEFAULT_CURRENCY,
     DEFAULT_MAX_AMOUNT_MINOR,
@@ -91,14 +92,12 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
     second_wire = encode_delegation_cert(delegations["second"])
     peer_wire = _peer_authorities_wire(wire)
     _write_private_env(output / "agent.env", _agent_environment(
-        agent_private, receiver_token, demo_token
+        agent_private, receiver_token, demo_token,
+        delegation_wire=wire, authorities_wire=scenario_wire,
     ))
     _write_private_env(output / "agent-b.env", _agent_environment(
-        second_private,
-        second_receiver_token,
-        second_demo_token,
-        delegation_name="delegation-b.json",
-        authorities_name="scenario-authorities-b.json",
+        second_private, second_receiver_token, second_demo_token,
+        delegation_wire=second_wire, authorities_wire=peer_wire,
     ))
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
@@ -259,18 +258,28 @@ def _agent_environment(
     receiver_token: str,
     demo_token: str,
     *,
-    delegation_name: str = "delegation.json",
-    authorities_name: str = "scenario-authorities.json",
+    delegation_wire: str,
+    authorities_wire: str,
 ) -> dict[str, str]:
-    """Both runtimes share one image and differ only by injected authority.
+    """Configuration for one runtime, pointing at its own volume.
 
-    The image carries every tenant's public certificate, because Maritime's
-    runtime configuration cannot carry a hybrid certificate of this size. Each
-    runtime is pointed at its own files and receives only its own private key.
+    Both runtimes run the same image and differ only by injected authority. The
+    image carries none of it: each runtime reads its delegation and fixture
+    from its persistent volume and verifies them against the digests emitted
+    here, so a rotation is a write and a restart rather than an image rebuild.
+
+    The digests are emitted alongside the paths deliberately. Configuration that
+    named the files without them would start a runtime with the integrity check
+    silently disabled.
     """
     return {
-        "RATIFY_DELEGATION_PATH": f"/app/deployment/{delegation_name}",
-        "RATIFY_SCENARIO_AUTHORITIES_PATH": f"/app/deployment/{authorities_name}",
+        "RATIFY_DELEGATION_PATH": f"{VOLUME_DIRECTORY}/delegation.json",
+        "RATIFY_SCENARIO_AUTHORITIES_PATH":
+            f"{VOLUME_DIRECTORY}/scenario-authorities.json",
+        "RATIFY_DELEGATION_SHA256":
+            hashlib.sha256(delegation_wire.encode()).hexdigest(),
+        "RATIFY_SCENARIO_AUTHORITIES_SHA256":
+            hashlib.sha256(authorities_wire.encode()).hexdigest(),
         "RATIFY_AGENT_ED25519_PRIVATE_B64": _b64(private_key.ed25519),
         "RATIFY_AGENT_ML_DSA_65_PRIVATE_B64": _b64(private_key.ml_dsa_65),
         "RATIFY_RECEIVER_TOKEN": receiver_token,

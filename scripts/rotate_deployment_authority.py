@@ -26,8 +26,10 @@ from pathlib import Path
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from maritime_ratify.profile import VOLUME_DIRECTORY  # noqa: E402
+
 API = "https://api.maritime.sh"
-VOLUME_DIRECTORY = "/data/ratify"
 
 
 @dataclass(frozen=True)

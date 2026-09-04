@@ -30,6 +30,9 @@ import uuid
 from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPOSITORY / "src"))
+from maritime_ratify.profile import VOLUME_DIRECTORY  # noqa: E402
+
 EXPECTATIONS = REPOSITORY / "docs" / "gate-expectations.json"
 ISOLATION_EXPECTATIONS = (
     REPOSITORY / "docs" / "runtime-isolation-expectations.json"
@@ -192,13 +195,18 @@ def _start_agent(
         "-e", f"PORT={CONTAINER_PORT}",
         "-e", f"RATIFY_RECEIVER_MCP_URL={receiver}/mcp/",
         "-e", f"RATIFY_PRESENTATION_URL={receiver}/presentations",
-        # The published image carries the deployment's own delegation. These
-        # mounts replace it with the principal issued on this machine, so the
-        # reproduction never depends on deployment authority material.
-        "-e", f"RATIFY_DELEGATION_PATH=/app/deployment/{delegation}",
-        "-e", f"RATIFY_SCENARIO_AUTHORITIES_PATH=/app/deployment/{authorities}",
-        "-v", f"{issuance / delegation}:/app/deployment/{delegation}:ro",
-        "-v", f"{issuance / authorities}:/app/deployment/{authorities}:ro",
+        # Mounted at the same path the deployment reads from, so the
+        # reproduction exercises the deployed configuration rather than a
+        # look-alike. The material is the principal issued on this machine, so
+        # it never depends on deployment authority.
+        "-e", f"RATIFY_DELEGATION_PATH={VOLUME_DIRECTORY}/delegation.json",
+        "-e", f"RATIFY_SCENARIO_AUTHORITIES_PATH="
+              f"{VOLUME_DIRECTORY}/scenario-authorities.json",
+        "-v", f"{issuance / delegation}:{VOLUME_DIRECTORY}/delegation.json:ro",
+        "-v", (
+            f"{issuance / authorities}:{VOLUME_DIRECTORY}"
+            "/scenario-authorities.json:ro"
+        ),
         "-p", f"127.0.0.1:{port}:{CONTAINER_PORT}",
         image,
     ])

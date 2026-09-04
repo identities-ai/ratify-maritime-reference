@@ -2,6 +2,7 @@ import base64
 import hashlib
 import json
 import stat
+from pathlib import Path
 
 import pytest
 from ratify_protocol import decode_delegation_cert, verify_delegation_signature
@@ -12,7 +13,11 @@ from maritime_ratify.deployment_issuance import (
     issue_deployment,
     renew_deployment,
 )
-from maritime_ratify.profile import SECOND_MAX_AMOUNT_MINOR, SECOND_RESOURCE
+from maritime_ratify.profile import (
+    SECOND_MAX_AMOUNT_MINOR,
+    SECOND_RESOURCE,
+    VOLUME_DIRECTORY,
+)
 
 
 def _env(path):
@@ -43,8 +48,19 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert not any("PRIVATE" in key for key in receiver)
     assert "RATIFY_ROOT_ID" not in agent
     assert "RATIFY_AGENT_ED25519_PRIVATE_B64" in agent
-    assert agent["RATIFY_DELEGATION_PATH"] == "/app/deployment/delegation.json"
-    assert agent["RATIFY_SCENARIO_AUTHORITIES_PATH"] == "/app/deployment/scenario-authorities.json"
+    # Issued configuration must point at the volume the deployment reads from,
+    # and must carry the digests. Naming the files without them would start a
+    # runtime with the integrity check silently disabled.
+    assert agent["RATIFY_DELEGATION_PATH"] == f"{VOLUME_DIRECTORY}/delegation.json"
+    assert agent["RATIFY_SCENARIO_AUTHORITIES_PATH"] == (
+        f"{VOLUME_DIRECTORY}/scenario-authorities.json"
+    )
+    assert agent["RATIFY_DELEGATION_SHA256"] == hashlib.sha256(
+        (output / "delegation.json").read_bytes()
+    ).hexdigest()
+    assert agent["RATIFY_SCENARIO_AUTHORITIES_SHA256"] == hashlib.sha256(
+        (output / "scenario-authorities.json").read_bytes()
+    ).hexdigest()
     assert "RATIFY_WRONG_AGENT_ED25519_PRIVATE_B64" not in agent
     assert set(scenarios["wrong_agent_fixture_private_key"]) == {
         "ed25519", "ml_dsa_65"
@@ -207,3 +223,32 @@ def test_renewal_rejects_inconsistent_principal_without_output(tmp_path, tamper)
         renew_deployment(path, renewal, now=1_800_432_000)
 
     assert not renewal.exists()
+
+
+def test_issued_configuration_points_where_the_image_reads(tmp_path):
+    """Issued configuration has to work against the image that is deployed.
+
+    It previously named /app/deployment, a path the image stopped carrying when
+    authority moved to the volume. Following the issuance output would have
+    configured a runtime that could not start, and nothing noticed because no
+    test compared the two.
+    """
+    output = tmp_path / "issuance"
+    issue_deployment(output, now=1_800_000_000)
+    dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text()
+
+    for name in ("agent.env", "agent-b.env"):
+        environment = _env(output / name)
+        for key in ("RATIFY_DELEGATION_PATH", "RATIFY_SCENARIO_AUTHORITIES_PATH"):
+            assert environment[key].startswith(f"{VOLUME_DIRECTORY}/"), (name, key)
+        # The image must not be expected to supply what the volume now holds.
+        assert "/app/deployment" not in dockerfile
+
+    # Both runtimes read the same path on their own volume, and are told apart
+    # by the material written there rather than by the filename.
+    assert _env(output / "agent.env")["RATIFY_DELEGATION_PATH"] == (
+        _env(output / "agent-b.env")["RATIFY_DELEGATION_PATH"]
+    )
+    assert _env(output / "agent.env")["RATIFY_DELEGATION_SHA256"] != (
+        _env(output / "agent-b.env")["RATIFY_DELEGATION_SHA256"]
+    )
