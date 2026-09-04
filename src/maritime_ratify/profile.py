@@ -18,3 +18,9 @@ WORKSPACE_ID = "maritime-ratify-reference"
 CATEGORY_CONSTRAINT = "com.ratifyprotocol.maritime.work_order_category"
 AUDIENCE_CONSTRAINT = "com.ratifyprotocol.maritime.audience"
 
+
+# Where each runtime reads its authority from. The artifacts live on the
+# runtime's persistent volume rather than in the image, so rotation is a write
+# and a restart. Named here because issuance, the rotation script and the local
+# reproduction must all agree.
+VOLUME_DIRECTORY = "/data/ratify"
