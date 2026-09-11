@@ -55,8 +55,15 @@ For each runtime, write the two artifacts and set the two digests:
 
 ```bash
 python3 scripts/rotate_deployment_authority.py /secure/path/renewal \
+  --image <agent image digest> \
   --token-file ~/.ratify/maritime-file-api.token
 ```
+
+`--image` is required. Both agent runtimes run the same agent image, and the
+digest is the one the runtimes are already on, because rotation restarts them
+rather than moving them to a new build. Maritime reports a derived tag rather
+than the source digest, so take it from the recorded current deployment and
+confirm it against the registry before running this.
 
 It writes through the file API, sets the expected digests, restarts each
 runtime, and refuses to continue if a written file does not read back with the
