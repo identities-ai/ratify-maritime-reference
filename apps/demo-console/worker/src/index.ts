@@ -38,6 +38,18 @@ const GLOBAL_LIMIT = 80;
 // console's staged waiting copy already describes.
 const AGENT_TIMEOUT_MS = 60_000;
 
+// A runtime that has auto-slept restores its snapshot in about a second, but the
+// application inside is not yet answering /chat. The first request after an idle
+// period therefore failed, and a visitor arriving at a cold console met an error
+// on their first click while every request after it succeeded. Platform logs
+// confirmed it: the failures land on the same second as "Agent woken" and on a
+// redeploy's restart, never on a warm runtime.
+//
+// Retrying only the readiness class covers that. A refused or 5xx upstream did
+// not run the scenario, so replaying it cannot double an authorization.
+const AGENT_READY_ATTEMPTS = 3;
+const AGENT_READY_BACKOFF_MS = 1_500;
+
 interface RateLimitResult {
   allowed: boolean;
 }
@@ -61,6 +73,9 @@ interface Env {
   CONSOLE_ORIGIN: string;
   RATIFY_DEMO_TOKEN: string;
   RATIFY_DEMO_TOKEN_B: string;
+  // Optional. Overridable so tests do not sleep and so the pause can be tuned
+  // from wrangler config without a code change.
+  AGENT_READY_BACKOFF_MS?: string;
   SCENARIO_LIMITER: {
     idFromName(name: string): unknown;
     get(id: unknown): LimiterStub;
@@ -214,17 +229,54 @@ export async function handleRequest(
     // internal timing the proxy can report without the agent or receiver
     // emitting events of their own.
     const upstreamStarted = Date.now();
-    const agent = await fetchAgent(`${agentUrl}/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Ratify-Demo-Token": `Bearer ${demoToken}`,
-      },
-      body: JSON.stringify({ message: scenario }),
-      signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
-    });
+    let agent: Response | undefined;
+    let attempts = 0;
+    for (let attempt = 1; attempt <= AGENT_READY_ATTEMPTS; attempt += 1) {
+      attempts = attempt;
+      let candidate: Response | undefined;
+      try {
+        candidate = await fetchAgent(`${agentUrl}/chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Ratify-Demo-Token": `Bearer ${demoToken}`,
+          },
+          body: JSON.stringify({ message: scenario }),
+          signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
+        });
+      } catch (error) {
+        // A timeout is the runtime being slow rather than absent, and the
+        // budget is already generous, so spending it again helps nobody.
+        if (error instanceof Error && error.name === "TimeoutError") throw error;
+        candidate = undefined;
+      }
+      if (candidate && candidate.status < 500) {
+        agent = candidate;
+        break;
+      }
+      console.log(JSON.stringify({
+        event: "agent_not_ready",
+        scenario,
+        attempt,
+        status: candidate?.status ?? null,
+      }));
+      if (attempt < AGENT_READY_ATTEMPTS) {
+        const backoff = Number(env.AGENT_READY_BACKOFF_MS ?? AGENT_READY_BACKOFF_MS);
+        const pause = Number.isFinite(backoff) && backoff >= 0
+          ? backoff
+          : AGENT_READY_BACKOFF_MS;
+        if (pause > 0) {
+          await new Promise((resume) => setTimeout(resume, pause * attempt));
+        }
+      }
+    }
     const upstreamMs = Date.now() - upstreamStarted;
-    if (!agent.ok) throw new Error();
+    if (!agent || !agent.ok) throw new Error();
+    if (attempts > 1) {
+      console.log(JSON.stringify({
+        event: "agent_ready_after_retry", scenario, attempts,
+      }));
+    }
     const payload: unknown = await agent.json();
     if (typeof payload !== "object" || payload === null) throw new Error();
     const value = payload as Record<string, unknown>;
