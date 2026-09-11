@@ -53,6 +53,7 @@ function environment(options: { allowed?: boolean; limiterFailure?: boolean } = 
       CONSOLE_ORIGIN: ORIGIN,
       RATIFY_DEMO_TOKEN: TOKEN,
       RATIFY_DEMO_TOKEN_B: `${TOKEN}-b`,
+      AGENT_READY_BACKOFF_MS: "0",
       SCENARIO_LIMITER: {
         idFromName: () => "one-global-object",
         get: () => ({ fetch: limiter }),
@@ -203,6 +204,58 @@ describe("scenario proxy", () => {
     expect(response.status).toBe(400);
     expect(limiter).not.toHaveBeenCalled();
     expect(fetchAgent).not.toHaveBeenCalled();
+  });
+
+  it("retries a scenario when the runtime is still waking and then serves it", async () => {
+    const { env } = environment();
+    const ready = agent();
+    const fetchAgent = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (fetchAgent.mock.calls.length <= 2) {
+        return new Response("waking", { status: 503 });
+      }
+      return ready(input, init);
+    });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ decision: "ALLOW" });
+    expect(fetchAgent).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries when the runtime refuses the connection outright", async () => {
+    const { env } = environment();
+    const ready = agent();
+    const fetchAgent = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (fetchAgent.mock.calls.length <= 1) throw new Error("connection refused");
+      return ready(input, init);
+    });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(200);
+    expect(fetchAgent).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after the readiness attempts and stays opaque", async () => {
+    const { env } = environment();
+    const fetchAgent = vi.fn(async () => new Response("waking", { status: 503 }));
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "SCENARIO_UNAVAILABLE" });
+    expect(fetchAgent).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry a client error, which is not a readiness failure", async () => {
+    const { env } = environment();
+    const fetchAgent = vi.fn(async () => new Response("nope", { status: 401 }));
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(fetchAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a scenario the runtime already answered", async () => {
+    const { env } = environment();
+    const fetchAgent = agent(200, { handler_invocations: 4 });
+    const response = await handleRequest(request(), env, fetchAgent);
+    expect(response.status).toBe(200);
+    expect(fetchAgent).toHaveBeenCalledTimes(1);
   });
 
   it("rejects duplicate scenario keys as ambiguous", async () => {
