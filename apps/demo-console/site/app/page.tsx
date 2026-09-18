@@ -260,6 +260,24 @@ export default function Home() {
           <p className="meaning"><b>ALLOW</b> means the receiver verified the delegation and invoked protected code. <b>DENY</b> means the receiver stopped the request before that code ran.</p>
         </div>
 
+        <section className="request-map" aria-labelledby="request-map-title">
+          <div className="request-map-heading">
+            <div><p className="kicker">HOW ONE REQUEST IS DECIDED</p><h2 id="request-map-title">The agent asks. The receiver decides.</h2></div>
+            <p>This is the path every scenario is designed to exercise. Ratify authority travels with the request; the protected handler is downstream of the decision.</p>
+          </div>
+          <div className="request-map-flow" role="img" aria-label="Agent request flows through signed Ratify authority to a receiver, which either allows the protected handler or denies before it runs">
+            <div className="request-node"><span className="request-node-icon">↗</span><b>Agent request</b><small>Action + resource + amount</small></div>
+            <span className="request-arrow" aria-hidden="true">→</span>
+            <div className="request-node signed"><span className="request-node-icon">✓</span><b>Signed authority</b><small>Scope, bounds, audience, expiry</small></div>
+            <span className="request-arrow" aria-hidden="true">→</span>
+            <div className="request-node receiver"><span className="request-node-icon">◎</span><b>Ratify receiver</b><small>Proof + challenge + policy</small></div>
+            <div className="request-outcomes">
+              <div className="request-outcome allow"><span>ALLOW</span><b>Protected handler</b><small>Runs the work order</small></div>
+              <div className="request-outcome deny"><span>DENY</span><b>Stops here</b><small>Handler is not entered</small></div>
+            </div>
+          </div>
+        </section>
+
         <div className="guided-card">
           <div><p className="kicker">START HERE</p><h2>See the claim in three requests</h2><p>Watch one allowed action, the same agent exceed its signed ceiling, and a second runtime fail when it presents a copied certificate.</p></div>
           <button className="run-all" onClick={runGuided} disabled={busy}>{guidedRunning ? "Running guided proof…" : "Run guided proof"}</button>
