@@ -239,7 +239,7 @@ describe("scenario proxy", () => {
     const response = await handleRequest(request(), env, fetchAgent);
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "SCENARIO_UNAVAILABLE" });
-    expect(fetchAgent).toHaveBeenCalledTimes(3);
+    expect(fetchAgent).toHaveBeenCalledTimes(5);
   });
 
   it("does not retry a client error, which is not a readiness failure", async () => {
