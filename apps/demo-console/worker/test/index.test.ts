@@ -259,6 +259,7 @@ describe("scenario proxy", () => {
       handler_invoked: false,
       handler_invocations: 0,
     });
+    expect(fetchAgent).toHaveBeenCalledTimes(1);
   });
 
   it("never serves a hosted fixture to live gates without the opt-in header", async () => {

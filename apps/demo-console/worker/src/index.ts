@@ -49,6 +49,8 @@ const AGENT_TIMEOUT_MS = 60_000;
 // not run the scenario, so replaying it cannot double an authorization.
 const AGENT_READY_ATTEMPTS = 5;
 const AGENT_READY_BACKOFF_MS = 5_000;
+const HOSTED_LIVE_ATTEMPTS = 1;
+const HOSTED_LIVE_TIMEOUT_MS = 6_000;
 
 interface RateLimitResult {
   allowed: boolean;
@@ -300,8 +302,12 @@ export async function handleRequest(
     // emitting events of their own.
     const upstreamStarted = Date.now();
     let agent: Response | undefined;
+    const hostedRequest = env.HOSTED_WALKTHROUGH_FALLBACK === "true" &&
+      request.headers.get("X-Ratify-Hosted-Walkthrough") === "1";
+    const readyAttempts = hostedRequest ? HOSTED_LIVE_ATTEMPTS : AGENT_READY_ATTEMPTS;
+    const requestTimeout = hostedRequest ? HOSTED_LIVE_TIMEOUT_MS : AGENT_TIMEOUT_MS;
     let attempts = 0;
-    for (let attempt = 1; attempt <= AGENT_READY_ATTEMPTS; attempt += 1) {
+    for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
       attempts = attempt;
       let candidate: Response | undefined;
       try {
@@ -312,7 +318,7 @@ export async function handleRequest(
             "X-Ratify-Demo-Token": `Bearer ${demoToken}`,
           },
           body: JSON.stringify({ message: scenario }),
-          signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
+          signal: AbortSignal.timeout(requestTimeout),
         });
       } catch (error) {
         // A timeout is the runtime being slow rather than absent, and the
@@ -331,7 +337,7 @@ export async function handleRequest(
         attempt,
         status: candidate?.status ?? null,
       }));
-      if (attempt < AGENT_READY_ATTEMPTS) {
+      if (attempt < readyAttempts) {
         const backoff = Number(env.AGENT_READY_BACKOFF_MS ?? AGENT_READY_BACKOFF_MS);
         const pause = Number.isFinite(backoff) && backoff >= 0
           ? backoff
