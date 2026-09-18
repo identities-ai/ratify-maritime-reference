@@ -53,6 +53,7 @@ function environment(options: { allowed?: boolean; limiterFailure?: boolean } = 
       CONSOLE_ORIGIN: ORIGIN,
       RATIFY_DEMO_TOKEN: TOKEN,
       RATIFY_DEMO_TOKEN_B: `${TOKEN}-b`,
+      HOSTED_WALKTHROUGH_FALLBACK: "false",
       AGENT_READY_BACKOFF_MS: "0",
       SCENARIO_LIMITER: {
         idFromName: () => "one-global-object",
@@ -138,6 +139,7 @@ describe("scenario proxy", () => {
     expect(response.status).toBe(200);
     expect(body).toMatchObject({
       scenario,
+      execution_mode: "maritime_live",
       decision,
       reason,
       decided_by: decidedBy,
@@ -149,7 +151,7 @@ describe("scenario proxy", () => {
       "authorized_currency", "authorized_max_amount_minor", "challenge_duration_ms",
       "correlation_id", "currency", "decided_by", "decision", "delegation_audience",
       "delegation_category", "delegation_expires_at", "delegation_issued_at",
-      "delegation_resource", "delegation_scope", "dispatch_duration_ms",
+      "delegation_resource", "delegation_scope", "dispatch_duration_ms", "execution_mode",
       "handler_invocations", "handler_invoked", "interceptor_duration_ms",
       "proof_build_duration_ms", "proof_upload_duration_ms", "reason",
       "requested_amount_minor", "requested_category", "requested_description",
@@ -242,6 +244,45 @@ describe("scenario proxy", () => {
     expect(fetchAgent).toHaveBeenCalledTimes(5);
   });
 
+  it("uses an explicit hosted walkthrough fixture when the live runtime is unavailable", async () => {
+    const { env } = environment();
+    env.HOSTED_WALKTHROUGH_FALLBACK = "true";
+    const fetchAgent = vi.fn(async () => new Response("waking", { status: 503 }));
+    const response = await handleRequest(request({ scenario: "over_limit" }, {
+      headers: { "X-Ratify-Hosted-Walkthrough": "1" },
+    }), env, fetchAgent);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      execution_mode: "hosted_walkthrough",
+      decision: "DENY",
+      reason: "DENY_LIMIT_EXCEEDED",
+      handler_invoked: false,
+      handler_invocations: 0,
+    });
+  });
+
+  it("never serves a hosted fixture to live gates without the opt-in header", async () => {
+    const { env } = environment();
+    env.HOSTED_WALKTHROUGH_FALLBACK = "true";
+    const fetchAgent = vi.fn(async () => new Response("waking", { status: 503 }));
+    const response = await handleRequest(request({ scenario: "allow" }), env, fetchAgent);
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({ error: "SCENARIO_UNAVAILABLE" });
+  });
+
+  it("does not mask an upstream authorization or schema response", async () => {
+    const { env } = environment();
+    env.HOSTED_WALKTHROUGH_FALLBACK = "true";
+    const unauthorized = await handleRequest(request({ scenario: "allow" }, {
+      headers: { "X-Ratify-Hosted-Walkthrough": "1" },
+    }), env, agent(401));
+    expect(unauthorized.status).toBe(502);
+    const malformed = await handleRequest(request({ scenario: "allow" }, {
+      headers: { "X-Ratify-Hosted-Walkthrough": "1" },
+    }), env, vi.fn(async () => Response.json({ decision: "ALLOW" })));
+    expect(malformed.status).toBe(502);
+  });
+
   it("does not retry a client error, which is not a readiness failure", async () => {
     const { env } = environment();
     const fetchAgent = vi.fn(async () => new Response("nope", { status: 401 }));
@@ -314,6 +355,7 @@ describe("scenario proxy", () => {
     ), env, fetchAgent);
     expect(response.status).toBe(204);
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe(ORIGIN);
+    expect(response.headers.get("Access-Control-Allow-Headers")).toContain("X-Ratify-Hosted-Walkthrough");
     expect(limiter).not.toHaveBeenCalled();
     expect(fetchAgent).not.toHaveBeenCalled();
   });

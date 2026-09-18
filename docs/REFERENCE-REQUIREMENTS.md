@@ -257,7 +257,10 @@ it MUST NOT replace Ratify subject verification.
 - **UI-005:** Every displayed decision, reason, handler count, and authority
   fact MUST originate from an executed request, not a pre-scripted outcome.
   Client-side waiting copy MUST be identified as waiting state and MUST NOT
-  claim that an unobserved server stage completed.
+  claim that an unobserved server stage completed. A hosted walkthrough MAY
+  use deterministic fixtures only when the result is explicitly labeled as
+  walkthrough mode, is excluded from live evidence and gate scripts, and the
+  page directs the reader to the repository for executed verification.
 - **UI-006:** The console MUST redact keys, full proofs, sensitive identifiers,
   and internal exception text.
 - **UI-007:** The default view MUST be understandable without cryptographic or
