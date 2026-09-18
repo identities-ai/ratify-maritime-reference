@@ -15,6 +15,14 @@ closed set of public fields, and uses one Durable Object to enforce exact
 ten-per-client and eighty-global requests per minute. The client key comes only from
 `CF-Connecting-IP`. Limiter failure denies the request.
 
+The production deployment also has an explicit hosted-walkthrough fallback.
+When the free-tier Maritime runtimes cannot wake, the Worker returns
+deterministic, clearly labeled scenario fixtures instead of a 502. Those
+fixtures preserve the expected decision and protected-handler behavior for the
+walkthrough; they are not presented as a live Maritime execution. The
+repository gate remains the authoritative live implementation and reproduction
+path.
+
 Limiter correctness depends on the Durable Object storage input gate and its
 single `public-demo` identity. Do not migrate the counters to KV or enable
 concurrent storage access. Each check also deletes expired client-address keys,

@@ -11,7 +11,7 @@ const GUIDED_SCENARIOS = ["allow", "over_limit", "copied_certificate"] as const;
 const browserClock = () => globalThis.performance.now();
 const stages = [
   ["01", "Request submitted", "The browser sent a closed scenario to the public proxy"],
-  ["02", "Runtime response", "The deployed Maritime runtime returned evidence"],
+  ["02", "Authorization response", "The deployed authorization boundary returned evidence"],
   ["03", "Decision rendered", "This page displays the response without prefilled outcomes"],
 ];
 
@@ -48,6 +48,7 @@ const scenarios: {
 type Result = {
   correlation_id: string;
   scenario: Scenario;
+  execution_mode: "maritime_live" | "hosted_walkthrough";
   decision: string;
   reason: string;
   decided_by: string;
@@ -121,7 +122,7 @@ export default function Home() {
     try {
       const response = await fetch(API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Ratify-Hosted-Walkthrough": "1" },
         body: JSON.stringify({ scenario }),
         signal: controller.signal,
       });
@@ -195,10 +196,13 @@ export default function Home() {
   // pending is briefly null, the rest of the page became clickable and a second
   // request could start alongside the loop.
   const busy = pending !== null || runningSuite || guidedRunning;
+  const hostedWalkthrough = result?.execution_mode === "hosted_walkthrough" ||
+    Object.values(results).some((item) => item?.execution_mode === "hosted_walkthrough") ||
+    Object.values(isolationResults).some((item) => item?.execution_mode === "hosted_walkthrough");
 
   const progressCopy = [
-    ["Request submitted", "The browser is contacting the deployed Maritime runtime."],
-    ["Waiting for the runtime response", "A sleeping runtime may need several seconds to become ready."],
+    ["Request submitted", "The browser is contacting the public authorization boundary."],
+    ["Waiting for the runtime response", "A live runtime may need several seconds to become ready."],
     ["Still waiting", "The result will report whether protected code ran. No outcome is assumed."],
   ][Math.min(progress, 2)];
 
@@ -223,13 +227,13 @@ export default function Home() {
           <Image src="/maritime/ratify-logo.png" alt="" width={28} height={28} unoptimized />
           <span>RATIFY <b>LABS</b></span>
         </a>
-        <span className="live"><i /> Live pilot</span>
+        <span className="live"><i /> Authorization pilot</span>
       </header>
 
       <section className="hero">
         <p className="eyebrow">MARITIME × RATIFY</p>
         <h1>An agent can ask.<br /><em>Authority decides.</em></h1>
-        <p className="lede">Run one permitted work order and eight adversarial requests against the same Maritime-hosted authorization boundary. Every denial must stop before protected code runs.</p>
+        <p className="lede">Run one permitted work order and eight adversarial requests against the same authorization boundary. Every denial must stop before protected code runs.</p>
         <div className="hero-links" aria-label="Learn about the technologies in this pilot">
           <a href="https://maritime.sh/" target="_blank" rel="noreferrer">About Maritime ↗</a>
           <a href="https://ratifyprotocol.com/" target="_blank" rel="noreferrer">About Ratify Protocol ↗</a>
@@ -260,7 +264,7 @@ export default function Home() {
         </div>
 
         <div className="lab-head">
-          <div><p className="kicker">LIVE AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus eight adversarial denials</h2></div>
+          <div><p className="kicker">AUTHORIZATION LAB</p><h2 id="lab-title">Allow plus eight adversarial denials</h2></div>
           <button className="run-all secondary" onClick={runAll} disabled={busy}>
             {runningSuite ? `Running ${Object.keys(results).length + 1} of 9…` : "Run all nine →"}
           </button>
@@ -304,7 +308,7 @@ export default function Home() {
               </li>;
             })}
           </ol>
-          <p>These three ran. The other six adversarial cases have not, and are listed above as unrun until you choose them.</p>
+          <p>{hostedWalkthrough ? "These three walkthrough fixtures were displayed. The other six adversarial cases have not been executed live; run the repository for live verification." : "These three ran. The other six adversarial cases have not, and are listed above as unrun until you choose them."}</p>
         </section>}
 
         {suite === "full" && Object.keys(results).length > 0 && <section className="gate-results" aria-labelledby="gate-results-title">
@@ -321,13 +325,13 @@ export default function Home() {
               </li>;
             })}
           </ol>
-          <p>Every row is populated from a request executed against the deployed Maritime agent and receiver. No outcome is prefilled.</p>
+          <p>{hostedWalkthrough ? "The live runtime was unavailable for this run, so these rows use labeled deterministic walkthrough fixtures. Run the repository locally for live execution." : "Every row is populated from a request executed against the deployed Maritime agent and receiver. No outcome is prefilled."}</p>
         </section>}
 
         <section className="isolation-check" aria-labelledby="isolation-title">
           <div className="isolation-heading"><p className="kicker">MARITIME RUNTIME ISOLATION</p><h3 id="isolation-title">Runtime isolation check</h3><p>Agent B runs the same image in a separate Maritime runtime with Portland authority capped at $200. These checks are separate from the nine-case adversarial gate.</p></div>
           <div className="isolation-grid">{isolationScenarios.map((scenario) => { const executed = isolationResults[scenario.id]; const passes = executed?.decision === scenario.expectedDecision && executed.reason === scenario.expectedReason && executed.handler_invoked === (scenario.expectedDecision === "ALLOW"); return <button key={scenario.id} onClick={() => runIsolation(scenario.id)} disabled={busy} className={executed ? (passes ? "scenario-pass" : "scenario-fail") : ""}><strong>{scenario.title}</strong><span className="scenario-detail">{scenario.detail}</span><span className="button-action">{pending === scenario.id ? "Running…" : executed ? `${executed.reason} · ${passes ? "PASS" : "CHECK"}` : "Run check →"}</span></button>; })}</div>
-          <p className="isolation-note">The two runtimes use byte-identical agent images but different subjects, credentials, and bounds. Results are live responses; no row is prefilled.</p>
+          <p className="isolation-note">The two runtimes use byte-identical agent images but different subjects, credentials, and bounds. {hostedWalkthrough ? "This run used labeled deterministic walkthrough fixtures; no live outcome is claimed." : "Results are live responses; no row is prefilled."}</p>
         </section>
 
         {(pending || result || error) && <div className="execution" aria-live="polite">
@@ -345,6 +349,7 @@ export default function Home() {
           </div>}
           {error && <div className="result error" role="alert"><b>{error.title}</b><span>{error.body}</span></div>}
           {result && <div className={`result ${allowed ? "allow" : "deny"}`} role="status">
+            {result.execution_mode === "hosted_walkthrough" && <div className="walkthrough-notice"><b>Hosted walkthrough mode</b><span>The live Maritime runtime is unavailable, so this result is a deterministic Ratify scenario fixture. Run the repository locally for live execution.</span></div>}
             <div className="decision-icon" aria-hidden="true">{allowed ? "✓" : "×"}</div>
             <div className="decision-copy"><p>AUTHORITY RESULT</p><h3>{result.decision}</h3><span>{decisionExplanation}</span></div>
             <dl>
@@ -353,7 +358,7 @@ export default function Home() {
               <div><dt>Receiver reason</dt><dd><code>{result.reason}</code></dd></div>
               <div><dt>Decided by</dt><dd>{deciderLabels[result.decided_by] ?? result.decided_by}</dd></div>
               <div><dt>Handler entered for this request</dt><dd>{result.handler_invoked ? "Yes" : "No"}</dd></div>
-              <div><dt>Shared receiver handler count</dt><dd>{result.handler_invocations}</dd></div>
+              <div><dt>{result.execution_mode === "hosted_walkthrough" ? "Handler invoked for this fixture" : "Shared receiver handler count"}</dt><dd>{result.handler_invocations}</dd></div>
               <div><dt>Requested resource</dt><dd><code>{result.requested_resource}</code></dd></div>
               <div><dt>Requested category</dt><dd>{result.requested_category}</dd></div>
               <div><dt>Requested operation detail</dt><dd>{result.requested_description}</dd></div>
@@ -425,11 +430,11 @@ export default function Home() {
 
         <div className="evidence-boundary">
           <article>
-            <p className="kicker">WHAT THE LIVE RESULT PROVES</p>
+            <p className="kicker">{hostedWalkthrough ? "WHAT THE WALKTHROUGH ILLUSTRATES" : "WHAT THE LIVE RESULT PROVES"}</p>
             <ul>
               <li>The same agent can be allowed or denied without changing its identity.</li>
               <li>Seven distinct authority failures are stopped before the protected handler.</li>
-              <li>The displayed scope, amount, bound, and expiry come from live execution evidence.</li>
+              <li>{hostedWalkthrough ? "The displayed scope, amount, bound, and expiry are deterministic walkthrough fields; the repository provides live execution evidence." : "The displayed scope, amount, bound, and expiry come from live execution evidence."}</li>
             </ul>
           </article>
           <article>

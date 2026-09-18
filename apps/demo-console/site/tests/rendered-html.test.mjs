@@ -46,7 +46,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /Portable authority/);
   assert.match(html, /From signed permission to protected code/);
   assert.match(html, /The receiver is separately deployed but currently operated by Ratify/);
-  assert.match(html, /Live pilot/);
+  assert.match(html, /Authorization pilot/);
   assert.match(html, /href="https:\/\/maritime\.sh\/"/);
   assert.match(html, /href="https:\/\/ratifyprotocol\.com\/"/);
   assert.match(html, /Open-source pilot implementation/);

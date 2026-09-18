@@ -76,6 +76,7 @@ interface Env {
   // Optional. Overridable so tests do not sleep and so the pause can be tuned
   // from wrangler config without a code change.
   AGENT_READY_BACKOFF_MS?: string;
+  HOSTED_WALKTHROUGH_FALLBACK?: string;
   SCENARIO_LIMITER: {
     idFromName(name: string): unknown;
     get(id: unknown): LimiterStub;
@@ -156,6 +157,74 @@ export default {
   },
 };
 
+type ScenarioResult = {
+  decision: string;
+  reason: string;
+  decided_by: string;
+  verification_status: string | null;
+  handler_invoked: boolean;
+  handler_invocations: number;
+  requested_amount_minor: number;
+  requested_resource: string;
+  requested_category: string;
+  requested_description: string;
+  authorized_max_amount_minor: number;
+  currency: string;
+  authorized_currency: string;
+  delegation_scope: string;
+  delegation_resource: string;
+  delegation_category: string;
+  delegation_audience: string;
+  delegation_issued_at: number;
+  delegation_expires_at: number;
+};
+
+function hostedWalkthroughResult(scenario: string): ScenarioResult {
+  const allow = scenario === "allow" || scenario === "isolation_own";
+  const wrongResource = scenario === "wrong_resource" || scenario === "isolation_wrong_site";
+  const copied = scenario === "copied_certificate" || scenario === "isolation_borrowed_certificate";
+  const portlandAuthority = scenario.startsWith(SECOND_RUNTIME_PREFIX);
+  const borrowedCertificate = scenario === "isolation_borrowed_subject" || scenario === "isolation_borrowed_certificate";
+  const portlandResource = "site:warehouse-portland-01";
+  const seattleResource = "site:warehouse-seattle-01";
+  const result = allow
+    ? { decision: "ALLOW", reason: "ALLOW", decided_by: "ratify_verification", verification_status: "authorized_agent" }
+    : wrongResource
+      ? { decision: "DENY", reason: "DENY_RESOURCE_MISMATCH", decided_by: "ratify_verification", verification_status: "constraint_denied" }
+      : copied
+        ? { decision: "DENY", reason: "DENY_VERIFICATION_FAILED", decided_by: "ratify_verification", verification_status: "invalid" }
+        : scenario === "over_limit"
+          ? { decision: "DENY", reason: "DENY_LIMIT_EXCEEDED", decided_by: "ratify_verification", verification_status: "constraint_denied" }
+          : scenario === "altered_operation"
+            ? { decision: "DENY", reason: "DENY_OPERATION_MISMATCH", decided_by: "proof_carrier", verification_status: null }
+            : scenario === "expired"
+              ? { decision: "DENY", reason: "DENY_EXPIRED", decided_by: "ratify_verification", verification_status: "expired" }
+              : scenario === "revoked"
+                ? { decision: "DENY", reason: "DENY_REVOKED", decided_by: "ratify_verification", verification_status: "revoked" }
+                : scenario === "replay"
+                  ? { decision: "DENY", reason: "DENY_REPLAY", decided_by: "proof_carrier", verification_status: null }
+                  : { decision: "DENY", reason: "DENY_SUBJECT_MISMATCH", decided_by: "receiver_precheck", verification_status: null };
+  const now = Math.floor(Date.now() / 1_000);
+  return {
+    ...result,
+    handler_invoked: allow,
+    handler_invocations: allow ? 1 : 0,
+    requested_amount_minor: scenario === "over_limit" ? 50_100 : scenario === "isolation_own" || scenario === "isolation_wrong_site" ? 15_000 : 42_000,
+    requested_resource: scenario === "wrong_resource" ? portlandResource : borrowedCertificate || scenario === "isolation_wrong_site" ? seattleResource : portlandAuthority ? portlandResource : seattleResource,
+    requested_category: "electrical",
+    requested_description: scenario === "isolation_own" ? "Inspect Portland loading-bay lighting" : scenario === "altered_operation" ? "Replace loading-bay electrical panel" : "Inspect and repair loading-bay lighting",
+    authorized_max_amount_minor: portlandAuthority ? 20_000 : 50_000,
+    currency: "USD",
+    authorized_currency: "USD",
+    delegation_scope: "custom:work_order:create",
+    delegation_resource: borrowedCertificate ? seattleResource : portlandAuthority ? portlandResource : seattleResource,
+    delegation_category: "electrical",
+    delegation_audience: "maritime-ratify-demo-receiver",
+    delegation_issued_at: scenario === "expired" ? now - 604_800 : now - 3_600,
+    delegation_expires_at: scenario === "expired" ? now - 3_600 : now + 604_800,
+  };
+}
+
 export async function handleRequest(
   request: Request,
   env: Env,
@@ -183,6 +252,7 @@ export async function handleRequest(
   }
 
   let scenario: string;
+  let upstreamResponseReceived = false;
   try {
     const raw = await request.text();
     if (raw.length > 256) throw new Error();
@@ -251,6 +321,7 @@ export async function handleRequest(
         candidate = undefined;
       }
       if (candidate && candidate.status < 500) {
+        upstreamResponseReceived = true;
         agent = candidate;
         break;
       }
@@ -317,6 +388,7 @@ export async function handleRequest(
       correlation_id: crypto.randomUUID(),
       upstream_duration_ms: upstreamMs,
       scenario,
+      execution_mode: "maritime_live",
       decision: value.decision,
       reason: value.reason,
       decided_by: value.decided_by,
@@ -342,6 +414,23 @@ export async function handleRequest(
       timestamp: new Date().toISOString(),
     }, 200, env.CONSOLE_ORIGIN);
   } catch {
+    if (
+      env.HOSTED_WALKTHROUGH_FALLBACK === "true" &&
+      request.headers.get("X-Ratify-Hosted-Walkthrough") === "1" &&
+      !upstreamResponseReceived
+    ) {
+      console.log(JSON.stringify({ event: "hosted_walkthrough_served", scenario }));
+      const fallback = hostedWalkthroughResult(scenario);
+      return reply({
+        correlation_id: crypto.randomUUID(),
+        upstream_duration_ms: 0,
+        scenario,
+        execution_mode: "hosted_walkthrough",
+        ...fallback,
+        ...Object.fromEntries(TIMING_FIELDS.map((field) => [field, null])),
+        timestamp: new Date().toISOString(),
+      }, 200, env.CONSOLE_ORIGIN);
+    }
     return reply({ error: "SCENARIO_UNAVAILABLE" }, 502, env.CONSOLE_ORIGIN);
   }
 }
@@ -357,7 +446,7 @@ function responseHeaders(origin: string): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Ratify-Hosted-Walkthrough",
     "Cache-Control": "no-store",
     "Content-Security-Policy": "default-src 'none'",
     "Vary": "Origin",

@@ -17,7 +17,7 @@ publication items.
 | MCP-001..007 | Real Streamable HTTP flow, business-only schema, caller-bound reference | Complete locally |
 | MAR-001..004, MAR-006 | Maritime deployment record below | Complete |
 | MAR-005 | Current application-log inspection | Current platform logs available; structured decision-stage logging remains pending |
-| UI-001..013 | Executed console evidence and visual QA | Complete |
+| UI-001..013 | Executed console evidence and visual QA; hosted-walkthrough fallback is labeled and excluded from live evidence | Complete |
 | PXY-001..024 | Demo proxy unit, type, bundle, hostile, and live gates | Complete |
 | VAL-001..007 | Clean-checkout run and final public-copy review | Pending final clean-checkout record |
 | PUB-001, PUB-005 | Canonical public implementation repository and no-endorsement boundary | Complete |
