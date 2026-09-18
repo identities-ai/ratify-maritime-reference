@@ -212,9 +212,11 @@ export default function Home() {
   const selectedScenario = result
     ? scenarios.find((scenario) => scenario.id === result.scenario)
     : null;
-  const decisionExplanation = allowed
-    ? "The receiver verified the signed delegation and exact request, then called the protected create_work_order handler."
-    : selectedScenario?.detail ?? "The receiver rejected the request before protected code ran.";
+  const decisionExplanation = result?.execution_mode === "hosted_walkthrough"
+    ? (allowed ? "The hosted fixture illustrates the permitted action and expected handler outcome." : selectedScenario?.detail ?? "The hosted fixture illustrates a request that should be stopped before protected code runs.")
+    : allowed
+      ? "The receiver verified the signed delegation and exact request, then called the protected create_work_order handler."
+      : selectedScenario?.detail ?? "The receiver rejected the request before protected code ran.";
   const passed = (scenario: typeof scenarios[number], executed: Result | undefined) =>
     executed?.decision === scenario.expectedDecision &&
     executed.reason === scenario.expectedReason &&
@@ -367,7 +369,7 @@ export default function Home() {
               <div><dt>Delegated category</dt><dd>{result.delegation_category}</dd></div>
               <div><dt>Delegation expires</dt><dd>{new Date(result.delegation_expires_at * 1000).toLocaleString()}</dd></div>
             </dl>
-            <p className="counter-note">This is a receiver-wide counter shared by every demo visitor, not your session count.</p>
+            <p className="counter-note">{result.execution_mode === "hosted_walkthrough" ? "This fixture reports only whether the illustrated handler would run; it is not a live receiver-wide counter." : "This is a receiver-wide counter shared by every demo visitor, not your session count."}</p>
             <details><summary>Technical evidence and timings</summary><p>Deciding layer <code>{result.decided_by}</code> · Ratify verification status <code>{result.verification_status ?? "not reached"}</code> · Audience <code>{result.delegation_audience}</code> · Delegation issued {new Date(result.delegation_issued_at * 1000).toLocaleString()} · Correlation <code>{result.correlation_id}</code> · Executed {new Date(result.timestamp).toLocaleString()} · No keys, proof material, or private identifiers are displayed.</p><div className="timings"><b>Observed timings</b><span>Browser total: {browserDuration ?? "—"} ms</span><span>Proxy upstream: {result.upstream_duration_ms} ms</span><span>Agent authority path: {result.interceptor_duration_ms ?? "not emitted"} ms</span><span>Challenge: {result.challenge_duration_ms ?? "not reached"} ms</span><span>Proof upload: {result.proof_upload_duration_ms ?? "not reached"} ms</span><span>Dispatch: {result.dispatch_duration_ms ?? "not reached"} ms</span><span>Proof construction: {result.proof_build_duration_ms ?? "not reached"} ms</span><span>Receiver verification: {result.verification_duration_ms ?? "not reached"} ms</span></div></details>
           </div>}
         </div>}
