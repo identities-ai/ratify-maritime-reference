@@ -47,8 +47,8 @@ const AGENT_TIMEOUT_MS = 60_000;
 //
 // Retrying only the readiness class covers that. A refused or 5xx upstream did
 // not run the scenario, so replaying it cannot double an authorization.
-const AGENT_READY_ATTEMPTS = 3;
-const AGENT_READY_BACKOFF_MS = 1_500;
+const AGENT_READY_ATTEMPTS = 5;
+const AGENT_READY_BACKOFF_MS = 5_000;
 
 interface RateLimitResult {
   allowed: boolean;
@@ -266,7 +266,13 @@ export async function handleRequest(
           ? backoff
           : AGENT_READY_BACKOFF_MS;
         if (pause > 0) {
-          await new Promise((resume) => setTimeout(resume, pause * attempt));
+          const retryAfter = Number(candidate?.headers.get("Retry-After"));
+          const retryAfterMs = Number.isFinite(retryAfter) && retryAfter >= 0
+            ? retryAfter * 1_000
+            : 0;
+          await new Promise((resume) =>
+            setTimeout(resume, Math.max(pause * attempt, retryAfterMs))
+          );
         }
       }
     }
