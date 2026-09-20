@@ -10,7 +10,8 @@ export const metadata: Metadata = {
   title: "Maritime × Ratify — Live Authorization Lab",
   description: "See delegated authority allow or deny a real Maritime agent work order before protected code runs.",
   icons: { icon: "/maritime/favicon.svg" },
-  openGraph: { title: "Maritime × Ratify", description: "An agent can ask. Authority decides.", type: "website", images: ["/maritime/og.jpg"] },
+  alternates: { canonical: "https://labs.ratifyprotocol.com/maritime/" },
+  openGraph: { title: "Maritime × Ratify", description: "An agent can ask. Authority decides.", url: "https://labs.ratifyprotocol.com/maritime/", type: "website", images: ["/maritime/og.jpg"] },
   twitter: { card: "summary_large_image", title: "Maritime × Ratify", description: "An agent can ask. Authority decides.", images: ["/maritime/og.jpg"] },
 };
 
