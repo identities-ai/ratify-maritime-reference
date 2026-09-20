@@ -85,3 +85,20 @@ footer { max-width:1180px;margin:auto;padding:26px 24px 38px;border-top:1px soli
 @media (prefers-reduced-motion:reduce){*,*:before{animation:none!important;transition:none!important}}
 @media (max-width:760px){.nav{height:66px}.hero{padding-top:58px}.hero-links{flex-direction:column;gap:12px}.lab{margin:0 14px 70px;padding:22px}.authority-card{padding:22px}.guided-card{display:block;padding:22px}.guided-card .run-all{margin-top:18px;width:100%}.authority-facts{grid-template-columns:1fr}.request-map{padding:22px}.request-map-heading{display:block}.request-map-heading>p{margin-top:12px}.request-map-flow{grid-template-columns:1fr;gap:8px}.request-arrow{transform:rotate(90deg);height:20px}.request-node{min-height:0}.request-outcomes{margin-top:4px}.lab-head{display:block}.run-all{margin-top:20px;width:100%}.scenario-grid,.proof-grid,.partner-grid,.evidence-boundary,.gate-results ol,.isolation-grid{grid-template-columns:1fr}.stages{grid-template-columns:1fr;text-align:left}.stages:before{display:none}.stage{display:flex;text-align:left;align-items:center;gap:12px}.stage-number{margin:0}.stage small{font-size:12px}.result{grid-template-columns:auto 1fr}.result dl,.counter-note,.result details{grid-column:1/-1}.result dl div:nth-child(3){grid-column:1/-1}.timings{grid-template-columns:1fr}.explainer{padding-bottom:64px}.reproduce{margin:0 14px 70px;padding:22px}.why{margin:0 14px 70px;padding:48px 22px}.architecture{padding:24px}.architecture-copy{display:block}.architecture-copy>p:last-child{margin-top:14px}.architecture-flow{grid-template-columns:1fr;text-align:left}.architecture-flow:before{display:none}.architecture-flow li{display:grid;grid-template-columns:35px 1fr;column-gap:12px;text-align:left;align-items:center}.architecture-flow span{grid-row:1/3;margin:0}.architecture-flow small{margin-top:2px}footer{gap:18px;flex-direction:column}.lab-head p:last-child{margin-bottom:0}}
 code{overflow-wrap:anywhere;word-break:normal}
+
+/* Match the shared Labs shell: full-width, fixed, and translucent while the
+   walkthrough scrolls underneath it. */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-bottom-color: rgba(223,228,236,.86);
+  box-shadow: 0 8px 30px rgba(32,54,91,.06);
+}
+.hero { padding-top: 130px; }
+@media (max-width:760px) { .hero { padding-top: 112px; } }
