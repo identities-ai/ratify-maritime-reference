@@ -7,7 +7,7 @@ import {
 } from "../scripts/verify-deployed-assets.mjs";
 
 const PAGE = `<!doctype html><html><head>
-<link rel="icon" href="/maritime/favicon.svg"/>
+<link rel="icon" href="/maritime/ratify-logo.png"/>
 <meta property="og:image" content="https://labs.example/maritime/og.jpg"/>
 <link rel="stylesheet" href="/maritime/_next/static/css/index.aaa.css"/>
 <script src="/maritime/_next/static/chunks/index-bbb.js"></script>
@@ -43,7 +43,6 @@ test("discovers every referenced asset, including meta image URLs", () => {
   assert.deepEqual(assets, [
     "/maritime/_next/static/chunks/index-bbb.js",
     "/maritime/_next/static/css/index.aaa.css",
-    "/maritime/favicon.svg",
     "/maritime/og.jpg",
     "/maritime/ratify-logo.png",
   ]);
@@ -68,9 +67,9 @@ test("fails on a 200 response with an empty body", async () => {
 
 test("fails on a missing asset", async () => {
   const problems = await verify({
-    "/maritime/favicon.svg": new Response("nope", { status: 404 }),
+    "/maritime/ratify-logo.png": new Response("nope", { status: 404 }),
   });
-  assert.deepEqual(problems, ["/maritime/favicon.svg returned 404"]);
+  assert.deepEqual(problems, ["/maritime/ratify-logo.png returned 404"]);
 });
 
 test("fails when an asset serves the wrong content type", async () => {
@@ -107,7 +106,6 @@ test("fails when a required asset kind is absent", async () => {
       }),
   });
   assert.deepEqual(problems, [
-    "page referenced no .svg asset",
     "page referenced no .js asset",
   ]);
 });

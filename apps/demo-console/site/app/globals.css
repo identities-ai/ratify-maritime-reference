@@ -94,11 +94,11 @@ code{overflow-wrap:anywhere;word-break:normal}
   left: 0;
   right: 0;
   z-index: 20;
-  background: rgba(255,255,255,.78);
+  background: rgba(255,255,255,.92);
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   border-bottom-color: rgba(223,228,236,.86);
-  box-shadow: 0 8px 30px rgba(32,54,91,.06);
+  box-shadow: 0 8px 30px rgba(32,54,91,.09);
 }
 .hero { padding-top: 130px; }
 @media (max-width:760px) { .hero { padding-top: 112px; } }

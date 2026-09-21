@@ -54,7 +54,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
   assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
   assert.match(html, /RATIFY[\s\S]*LABS/);
-  assert.match(html, /rel="icon"[^>]*href="\/maritime\/favicon\.svg"/);
+  assert.match(html, /rel="icon"[^>]*href="\/maritime\/ratify-logo\.png"/);
   assert.match(html, /property="og:image"[^>]*content="https:\/\/labs\.ratifyprotocol\.com\/maritime\/og\.jpg"/);
 
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
