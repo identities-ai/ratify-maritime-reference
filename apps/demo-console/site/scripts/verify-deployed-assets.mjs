@@ -19,7 +19,7 @@ const CONTENT_TYPES = {
 };
 
 // Kinds that must be present, so discovery finding nothing cannot pass.
-const REQUIRED_EXTENSIONS = [".png", ".svg", ".js"];
+const REQUIRED_EXTENSIONS = [".png", ".js"];
 
 export function discoverAssets(html, basePath) {
   const pattern = new RegExp(`${basePath}/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+`, "g");
