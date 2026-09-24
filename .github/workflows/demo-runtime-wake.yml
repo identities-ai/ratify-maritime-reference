@@ -1,0 +1,26 @@
+name: Demo runtime wake
+
+# Maritime currently rejects public wake with a credit-gate 402 for these
+# deterministic runtimes. Its authenticated exec endpoint still wakes them.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-runtime-wake
+  cancel-in-progress: false
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v7
+      - name: Wake and check the three runtimes
+        env:
+          MARITIME_WAKE_TOKEN: ${{ secrets.MARITIME_WAKE_TOKEN }}
+        run: python3 scripts/wake_demo_runtimes.py
