@@ -1,0 +1,122 @@
+{
+  "command": "python3 scripts/reproduce_gate_locally.py",
+  "images": {
+    "agent": "ratify-maritime-agent:v2-local",
+    "agent_image_id": "sha256:7f1aab0fff8fa1749ea9092c26673d3c9331c1b612bc3d64441568632073ead0",
+    "built_from_checkout": true,
+    "receiver": "ratify-maritime-receiver:v2-local",
+    "receiver_image_id": "sha256:56f2b73aefa3911fd1c41a82d9970e4296e6da64df6e71ebeeab7ec57804a5fd"
+  },
+  "limits": "Local containers on one machine with fresh issuance. Not a deployment: no Maritime runtime, no public console and no live proxy is involved, and the images are local builds, not published or reviewed digests. The receiver uses the SDK's in-memory reference stores (claim store, receipt log, checkpoint, issuance store and journal), which are not durable and do not form an independent failure domain.",
+  "passed": true,
+  "platform": "linux/arm64",
+  "protocol_line": "v2",
+  "ratify_protocol_revision": "5f1093e07eaf280dfe6499a05036515b0aeaa98c",
+  "recorded_at": "2026-10-22T16:02:56+00:00",
+  "reference_source_revision": "347423d11028b91a2f13fcd6d253e3d915011700",
+  "results": {
+    "attempts": {
+      "primary_own_authority": {
+        "decided_by": "ratify_verification",
+        "decision": "ALLOW",
+        "handler_invoked": true,
+        "reason": "ALLOW",
+        "verification_status": "authorized_agent"
+      },
+      "secondary_borrowed_certificate": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_VERIFICATION_FAILED",
+        "verification_status": "chain_linkage_mismatch"
+      },
+      "secondary_borrowed_subject": {
+        "decided_by": "receiver_precheck",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_SUBJECT_MISMATCH",
+        "verification_status": null
+      },
+      "secondary_other_site": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_RESOURCE_MISMATCH",
+        "verification_status": "constraint_denied"
+      },
+      "secondary_own_authority": {
+        "decided_by": "ratify_verification",
+        "decision": "ALLOW",
+        "handler_invoked": true,
+        "reason": "ALLOW",
+        "verification_status": "authorized_agent"
+      }
+    },
+    "scenarios": {
+      "allow": {
+        "decided_by": "ratify_verification",
+        "decision": "ALLOW",
+        "handler_invoked": true,
+        "reason": "ALLOW",
+        "verification_status": "authorized_agent"
+      },
+      "altered_operation": {
+        "decided_by": "proof_carrier",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_OPERATION_MISMATCH",
+        "verification_status": null
+      },
+      "copied_certificate": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_VERIFICATION_FAILED",
+        "verification_status": "invalid_signature"
+      },
+      "expired": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_EXPIRED",
+        "verification_status": "expired"
+      },
+      "over_limit": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_LIMIT_EXCEEDED",
+        "verification_status": "constraint_denied"
+      },
+      "replay": {
+        "decided_by": "proof_carrier",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_REPLAY",
+        "verification_status": null
+      },
+      "revoked": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_REVOKED",
+        "verification_status": "revoked"
+      },
+      "wrong_agent": {
+        "decided_by": "receiver_precheck",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_SUBJECT_MISMATCH",
+        "verification_status": null
+      },
+      "wrong_resource": {
+        "decided_by": "ratify_verification",
+        "decision": "DENY",
+        "handler_invoked": false,
+        "reason": "DENY_RESOURCE_MISMATCH",
+        "verification_status": "constraint_denied"
+      }
+    }
+  },
+  "schema": "ratify-maritime-local-reproduction/v1"
+}
