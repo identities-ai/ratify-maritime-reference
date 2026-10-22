@@ -566,3 +566,14 @@ def test_verifier_id_is_the_receivers_64_hex_key_id():
     assert receiver.verifier_id == key_id_v2(receiver.verifier_public_key)
     assert len(receiver.verifier_id) == 64
     assert receiver.trusted_root_id == key_id_v2(receiver.trusted_root_public_key)
+
+
+def test_profile_constraint_names_are_the_sdk_registered_names():
+    """The profile spells these out so scripts can read it without the SDK."""
+    from ratify_protocol_v2.constraint_evaluator_v2 import CONSTRAINT_ALLOWED_VALUES_V2
+    from ratify_protocol_v2.constraints_v2 import CONSTRAINT_RECEIVER_AUDIENCE
+
+    from maritime_ratify import profile
+
+    assert profile.CATEGORY_CONSTRAINT == CONSTRAINT_ALLOWED_VALUES_V2
+    assert profile.AUDIENCE_CONSTRAINT == CONSTRAINT_RECEIVER_AUDIENCE

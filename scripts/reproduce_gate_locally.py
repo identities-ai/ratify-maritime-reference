@@ -23,6 +23,7 @@ credential and no call to the live deployment.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from datetime import UTC, datetime
 import json
 import platform as host_platform
@@ -38,8 +39,17 @@ import uuid
 from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPOSITORY / "src"))
-from maritime_ratify.profile import VOLUME_DIRECTORY  # noqa: E402
+
+
+# Load the profile module by path so this script needs no package install;
+# the package itself imports the Protocol v2 SDK, the profile does not.
+_PROFILE_SPEC = importlib.util.spec_from_file_location(
+    "maritime_profile",
+    Path(__file__).resolve().parents[1] / "src" / "maritime_ratify" / "profile.py",
+)
+_PROFILE = importlib.util.module_from_spec(_PROFILE_SPEC)
+_PROFILE_SPEC.loader.exec_module(_PROFILE)
+VOLUME_DIRECTORY = _PROFILE.VOLUME_DIRECTORY
 
 EXPECTATIONS = REPOSITORY / "docs" / "gate-expectations.json"
 ISOLATION_EXPECTATIONS = (

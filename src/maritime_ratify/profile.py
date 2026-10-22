@@ -1,7 +1,7 @@
-"""Public constants for the Maritime work-order authority profile."""
+"""Public constants for the Maritime work-order authority profile.
 
-from ratify_protocol_v2.constraint_evaluator_v2 import CONSTRAINT_ALLOWED_VALUES_V2
-from ratify_protocol_v2.constraints_v2 import CONSTRAINT_RECEIVER_AUDIENCE
+This module imports nothing, so the dependency-free scripts can read it.
+"""
 
 PROTOCOL_LINE = "v2"
 
@@ -46,9 +46,9 @@ CONTEXT_POLICY_FIELDS = (
 
 # The work-order category is bounded by the standard allowed_values/v1
 # evaluator profile, which reads the authenticated value under this field.
-CATEGORY_CONSTRAINT = CONSTRAINT_ALLOWED_VALUES_V2
+CATEGORY_CONSTRAINT = "com.ratifyprotocol.allowed_values"
 CATEGORY_FIELD = "work_order_category"
-AUDIENCE_CONSTRAINT = CONSTRAINT_RECEIVER_AUDIENCE
+AUDIENCE_CONSTRAINT = "ratify.receiver_audience"
 
 # Replay namespace and epoch for this receiver's challenges.
 VERIFIER_NAMESPACE = "maritime-work-orders"
