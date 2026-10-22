@@ -1,5 +1,13 @@
 # Evidence matrix
 
+> **Protocol line.** Everything below this note is Protocol v1 evidence
+> (`ratify-protocol` 1.0.0a16 and 1.0.0a17, August and September 2026) and is
+> kept unchanged as dated history. The `feat/protocol-v2` branch moves the
+> reference to Protocol v2; its evidence is
+> [`../evidence/protocol-v2-2026-10-22.md`](../evidence/protocol-v2-2026-10-22.md).
+> That record is local only. No v2 deployment exists, so no row below is
+> claimed for v2, and ISS-004 (a published package) is open for v2.
+
 Status: Phase 1 implementation and live pilot deployed; formal reference
 completion remains pending on the explicitly listed review, evidence, and
 publication items.

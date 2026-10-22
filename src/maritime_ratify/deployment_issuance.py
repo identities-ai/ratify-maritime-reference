@@ -10,17 +10,19 @@ from pathlib import Path
 import secrets
 import time
 
-from ratify_protocol import (
+from ratify_protocol_v2 import (
     HybridPrivateKey,
     HybridPublicKey,
-    derive_id,
-    encode_delegation_cert,
-    generate_agent,
-    generate_human_root,
-    sign_both,
-    verify_both,
-    verify_delegation_signature_e,
+    V2Error,
+    generate_keypair_v2,
+    key_id_v2,
 )
+from ratify_protocol_v2.protocol_v2 import (
+    decode_revocation_list_v2,
+    encode_delegation_cert_v2,
+    verify_delegation_cert_v2_signature,
+)
+from ratify_protocol_v2.signing_v2 import public_key_of
 
 from .authority import issue_bounded_delegation
 from .profile import (
@@ -29,36 +31,32 @@ from .profile import (
     DEFAULT_CURRENCY,
     DEFAULT_MAX_AMOUNT_MINOR,
     DEFAULT_RESOURCE,
+    PROTOCOL_LINE,
+    RECEIVER_ID,
     SECOND_MAX_AMOUNT_MINOR,
     SECOND_RESOURCE,
-    VERIFIER_ID,
     WORK_ORDER_SCOPE,
 )
+from .status import StatusAuthority
 
 DEMO_VALIDITY_SECONDS = 7 * 24 * 60 * 60
+STATUS_STATE_FILE = "status-state.json"
+STATUS_LIST_FILE = "status-list.json"
+_PRINCIPAL_KEYS = ("root", "status", "agent", "wrong_agent", "second_agent")
 
 
 def issue_deployment(output: Path, *, now: int | None = None) -> None:
     issued_at = int(time.time()) if now is None else now
-    root, root_private = generate_human_root()
-    agent, agent_private = generate_agent("Maritime Work Order Agent", "custom")
-    wrong_agent, wrong_agent_private = generate_agent(
-        "Maritime Wrong-Agent Adversary", "custom"
+    keys = {name: generate_keypair_v2() for name in _PRINCIPAL_KEYS}
+    _, verifier_private = generate_keypair_v2()
+    delegations = _issue_scenario_delegations(keys, issued_at)
+    status = StatusAuthority(
+        root_public_key=keys["root"][0],
+        status_private_key=keys["status"][1],
+        status_public_key=keys["status"][0],
     )
-    second, second_private = generate_agent(
-        "Maritime Portland Work Order Agent", "custom"
-    )
-    delegations = _issue_scenario_delegations(
-        root_id=root.id,
-        root_public_key=root.public_key,
-        root_private_key=root_private,
-        agent_id=agent.id,
-        agent_public_key=agent.public_key,
-        wrong_agent_id=wrong_agent.id,
-        wrong_agent_public_key=wrong_agent.public_key,
-        second_agent_id=second.id,
-        second_agent_public_key=second.public_key,
-        issued_at=issued_at,
+    status_wire = status.publish(
+        revoked=[delegations["revoked"].cert_id], at=issued_at
     )
     receiver_token = secrets.token_urlsafe(32)
     demo_token = secrets.token_urlsafe(32)
@@ -66,190 +64,176 @@ def issue_deployment(output: Path, *, now: int | None = None) -> None:
     second_demo_token = secrets.token_urlsafe(32)
     _prepare_output(output)
     _write_private_json(output / "principal.json", {
-        "root_id": root.id,
-        "root_public_key": _public(root.public_key),
-        "root_private_key": _private(root_private),
-        "agent_id": agent.id,
-        "agent_public_key": _public(agent.public_key),
-        "agent_private_key": _private(agent_private),
-        "wrong_agent_id": wrong_agent.id,
-        "wrong_agent_public_key": _public(wrong_agent.public_key),
-        "wrong_agent_private_key": _private(wrong_agent_private),
-        "second_agent_id": second.id,
-        "second_agent_public_key": _public(second.public_key),
-        "second_agent_private_key": _private(second_private),
+        f"{name}_{part}": value
+        for name, (public, private) in keys.items()
+        for part, value in (
+            ("id", key_id_v2(public)),
+            ("public_key", _public(public)),
+            ("private_key", _private(private)),
+        )
     })
+    _write_private(output / STATUS_STATE_FILE, status.state_json())
     _write_private_env(output / "receiver.env", _receiver_environment(
-        root=root,
-        revoked_cert_id=delegations["revoked"].cert_id,
-        primary_agent_id=agent.id,
+        root_public=keys["root"][0],
+        status_public=keys["status"][0],
+        verifier_private=verifier_private,
+        primary_agent_public=keys["agent"][0],
         primary_token=receiver_token,
-        secondary_agent_id=second.id,
+        secondary_agent_public=keys["second_agent"][0],
         secondary_token=second_receiver_token,
     ))
-    wire = encode_delegation_cert(delegations["active"])
-    scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
-    second_wire = encode_delegation_cert(delegations["second"])
+    wire = _wire(delegations["active"])
+    scenario_wire = _scenario_authorities_wire(delegations, keys["wrong_agent"][1])
+    second_wire = _wire(delegations["second"])
     peer_wire = _peer_authorities_wire(wire)
     _write_private_env(output / "agent.env", _agent_environment(
-        agent_private, receiver_token, demo_token,
+        keys["agent"][1], receiver_token, demo_token,
         delegation_wire=wire, authorities_wire=scenario_wire,
     ))
     _write_private_env(output / "agent-b.env", _agent_environment(
-        second_private, second_receiver_token, second_demo_token,
+        keys["second_agent"][1], second_receiver_token, second_demo_token,
         delegation_wire=second_wire, authorities_wire=peer_wire,
     ))
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
     _write_private(output / "delegation-b.json", second_wire)
     _write_private(output / "scenario-authorities-b.json", peer_wire)
+    _write_public(output / STATUS_LIST_FILE, status_wire.decode("utf-8"))
     _write_manifest(
         output / "manifest.json", delegations, wire, scenario_wire,
-        second_wire, peer_wire,
+        second_wire, peer_wire, status_wire,
     )
 
 
 def renew_deployment(principal_path: Path, output: Path, *, now: int | None = None) -> None:
+    """Re-issue every delegation for the same keys and re-sign status.
+
+    The new revoked fixture certificate is added to the cumulative signed
+    revocation list. The status publisher state next to ``principal.json`` is
+    advanced in place, because the next signing must continue its sequence.
+    """
     issued_at = int(time.time()) if now is None else now
-    principal = _load_principal(principal_path)
-    try:
-        root_public = _decode_public(principal["root_public_key"])
-        root_private = _decode_private(principal["root_private_key"])
-        agent_public = _decode_public(principal["agent_public_key"])
-        agent_private = _decode_private(principal["agent_private_key"])
-        wrong_agent_public = _decode_public(principal["wrong_agent_public_key"])
-        wrong_agent_private = _decode_private(principal["wrong_agent_private_key"])
-        second_public = _decode_public(principal["second_agent_public_key"])
-        delegations = _issue_scenario_delegations(
-            root_id=principal["root_id"],
-            root_public_key=root_public,
-            root_private_key=root_private,
-            agent_id=principal["agent_id"],
-            agent_public_key=agent_public,
-            wrong_agent_id=principal["wrong_agent_id"],
-            wrong_agent_public_key=wrong_agent_public,
-            second_agent_id=principal["second_agent_id"],
-            second_agent_public_key=second_public,
-            issued_at=issued_at,
-        )
-    except (KeyError, TypeError, ValueError):
-        raise RuntimeError("invalid principal artifact") from None
-    probe = b"ratify-maritime-principal-artifact-check"
-    if (
-        derive_id(root_public) != principal["root_id"]
-        or derive_id(agent_public) != principal["agent_id"]
-        or derive_id(wrong_agent_public) != principal["wrong_agent_id"]
-        or derive_id(second_public) != principal["second_agent_id"]
-        or verify_both(probe, sign_both(probe, agent_private), agent_public) is not None
-        or verify_both(
-            probe, sign_both(probe, wrong_agent_private), wrong_agent_public
-        ) is not None
-        or any(
-            verify_delegation_signature_e(delegation) is not None
-            for delegation in delegations.values()
-        )
+    keys = _load_principal(principal_path)
+    status = _load_status_authority(principal_path, keys)
+    delegations = _issue_scenario_delegations(keys, issued_at)
+    if any(
+        _verification_error(delegation) for delegation in delegations.values()
     ):
         raise RuntimeError("principal artifact is inconsistent")
+    status_wire = status.publish(
+        revoked=[delegations["revoked"].cert_id], at=issued_at
+    )
     _prepare_output(output)
-    wire = encode_delegation_cert(delegations["active"])
-    scenario_wire = _scenario_authorities_wire(delegations, wrong_agent_private)
+    wire = _wire(delegations["active"])
+    scenario_wire = _scenario_authorities_wire(delegations, keys["wrong_agent"][1])
+    second_wire = _wire(delegations["second"])
+    peer_wire = _peer_authorities_wire(wire)
     _write_private(output / "delegation.json", wire)
     _write_private(output / "scenario-authorities.json", scenario_wire)
-    _write_private(output / "delegation-b.json", encode_delegation_cert(
-        delegations["second"]
-    ))
-    peer_wire = _peer_authorities_wire(wire)
+    _write_private(output / "delegation-b.json", second_wire)
     _write_private(output / "scenario-authorities-b.json", peer_wire)
+    _write_public(output / STATUS_LIST_FILE, status_wire.decode("utf-8"))
     _write_manifest(
         output / "manifest.json", delegations, wire, scenario_wire,
-        encode_delegation_cert(delegations["second"]), peer_wire,
+        second_wire, peer_wire, status_wire,
     )
+    _replace_private(principal_path.parent / STATUS_STATE_FILE, status.state_json())
 
 
-def _issue_scenario_delegations(
-    *,
-    root_id: str,
-    root_public_key: HybridPublicKey,
-    root_private_key: HybridPrivateKey,
-    agent_id: str,
-    agent_public_key: HybridPublicKey,
-    wrong_agent_id: str,
-    wrong_agent_public_key: HybridPublicKey,
-    second_agent_id: str,
-    second_agent_public_key: HybridPublicKey,
-    issued_at: int,
-) -> dict[str, object]:
-    common = {
-        "root_id": root_id,
-        "root_public_key": root_public_key,
-        "root_private_key": root_private_key,
-    }
+def refresh_status(principal_path: Path, output: Path, *, now: int | None = None) -> None:
+    """Re-sign the current revocation list with a later ``updated_at``.
+
+    A signed list is current for at most one day, so the principal runs this
+    at least daily and writes the result to the receiver's volume.
+    """
+    at = int(time.time()) if now is None else now
+    keys = _load_principal(principal_path)
+    status = _load_status_authority(principal_path, keys)
+    status_wire = status.publish(revoked=[], at=at)
+    _prepare_output(output)
+    _write_public(output / STATUS_LIST_FILE, status_wire.decode("utf-8"))
+    _replace_private(principal_path.parent / STATUS_STATE_FILE, status.state_json())
+
+
+def _issue_scenario_delegations(keys: dict, issued_at: int) -> dict[str, object]:
+    root_public, root_private = keys["root"]
+
+    def issue(agent: str, **options):
+        options.setdefault("issued_at", issued_at)
+        options.setdefault("expires_at", issued_at + DEMO_VALIDITY_SECONDS)
+        return issue_bounded_delegation(
+            root_public_key=root_public,
+            root_private_key=root_private,
+            agent_public_key=keys[agent][0],
+            **options,
+        )
+
     return {
-        "active": issue_bounded_delegation(
-            **common,
-            agent_id=agent_id,
-            agent_public_key=agent_public_key,
-            issued_at=issued_at,
-            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
-        ),
-        "expired": issue_bounded_delegation(
-            **common,
-            agent_id=agent_id,
-            agent_public_key=agent_public_key,
+        "active": issue("agent"),
+        "expired": issue(
+            "agent",
             issued_at=issued_at - (2 * DEMO_VALIDITY_SECONDS),
             expires_at=issued_at - DEMO_VALIDITY_SECONDS,
         ),
-        "revoked": issue_bounded_delegation(
-            **common,
-            agent_id=agent_id,
-            agent_public_key=agent_public_key,
-            issued_at=issued_at,
-            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
-        ),
+        "revoked": issue("agent"),
         # A second tenant on the same receiver: different subject, different
         # site, and a lower ceiling, so the pair separates agent authority from
         # receiver capability.
-        "second": issue_bounded_delegation(
-            **common,
-            agent_id=second_agent_id,
-            agent_public_key=second_agent_public_key,
-            issued_at=issued_at,
-            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
+        "second": issue(
+            "second_agent",
             resource=SECOND_RESOURCE,
             max_amount_minor=SECOND_MAX_AMOUNT_MINOR,
         ),
-        "wrong_agent": issue_bounded_delegation(
-            **common,
-            agent_id=wrong_agent_id,
-            agent_public_key=wrong_agent_public_key,
-            issued_at=issued_at,
-            expires_at=issued_at + DEMO_VALIDITY_SECONDS,
-        ),
+        "wrong_agent": issue("wrong_agent"),
     }
+
+
+def _verification_error(delegation) -> bool:
+    try:
+        verify_delegation_cert_v2_signature(delegation)
+    except (V2Error, ValueError):
+        return True
+    return False
 
 
 def _receiver_environment(
     *,
-    root,
-    revoked_cert_id: str,
-    primary_agent_id: str,
+    root_public: HybridPublicKey,
+    status_public: HybridPublicKey,
+    verifier_private: HybridPrivateKey,
+    primary_agent_public: HybridPublicKey,
     primary_token: str,
-    secondary_agent_id: str,
+    secondary_agent_public: HybridPublicKey,
     secondary_token: str,
 ) -> dict[str, str]:
-    """Receiver configuration binding each caller to exactly one subject."""
+    """Receiver configuration binding each caller to exactly one agent key.
+
+    Trust is pinned to complete public keys: the root that issues
+    delegations and the separate status key that signs revocation status.
+    The verifier key signs this receiver's receipts and stays in the
+    receiver alone.
+    """
     return {
-        "RATIFY_ROOT_ID": root.id,
-        "RATIFY_ROOT_ED25519_B64": _b64(root.public_key.ed25519),
-        "RATIFY_ROOT_ML_DSA_65_B64": _b64(root.public_key.ml_dsa_65),
+        "RATIFY_ROOT_ID": key_id_v2(root_public),
+        "RATIFY_ROOT_ED25519_B64": _b64(root_public.ed25519),
+        "RATIFY_ROOT_ML_DSA_65_B64": _b64(root_public.ml_dsa_65),
+        "RATIFY_STATUS_KEY_ID": key_id_v2(status_public),
+        "RATIFY_STATUS_ED25519_B64": _b64(status_public.ed25519),
+        "RATIFY_STATUS_ML_DSA_65_B64": _b64(status_public.ml_dsa_65),
+        "RATIFY_STATUS_LIST_PATH": f"{VOLUME_DIRECTORY}/{STATUS_LIST_FILE}",
+        "RATIFY_VERIFIER_ED25519_PRIVATE_B64": _b64(verifier_private.ed25519),
+        "RATIFY_VERIFIER_ML_DSA_65_PRIVATE_B64": _b64(verifier_private.ml_dsa_65),
         "RATIFY_CALLER_SLOTS": "primary,secondary",
         "RATIFY_CALLER_ID_PRIMARY": "maritime-demo-agent",
         "RATIFY_CALLER_TOKEN_PRIMARY": primary_token,
-        "RATIFY_AGENT_ID_PRIMARY": primary_agent_id,
+        "RATIFY_AGENT_ID_PRIMARY": key_id_v2(primary_agent_public),
+        "RATIFY_AGENT_ED25519_B64_PRIMARY": _b64(primary_agent_public.ed25519),
+        "RATIFY_AGENT_ML_DSA_65_B64_PRIMARY": _b64(primary_agent_public.ml_dsa_65),
         "RATIFY_CALLER_ID_SECONDARY": "maritime-demo-agent-b",
         "RATIFY_CALLER_TOKEN_SECONDARY": secondary_token,
-        "RATIFY_AGENT_ID_SECONDARY": secondary_agent_id,
-        "RATIFY_REVOKED_CERT_IDS": revoked_cert_id,
+        "RATIFY_AGENT_ID_SECONDARY": key_id_v2(secondary_agent_public),
+        "RATIFY_AGENT_ED25519_B64_SECONDARY": _b64(secondary_agent_public.ed25519),
+        "RATIFY_AGENT_ML_DSA_65_B64_SECONDARY": _b64(secondary_agent_public.ml_dsa_65),
     }
 
 
@@ -288,6 +272,10 @@ def _agent_environment(
     }
 
 
+def _wire(delegation) -> str:
+    return encode_delegation_cert_v2(delegation).decode("utf-8")
+
+
 def _peer_authorities_wire(peer_delegation_wire: str) -> str:
     """The second runtime carries the first runtime's public certificate only.
 
@@ -306,7 +294,7 @@ def _scenario_authorities_wire(
 ) -> str:
     return json.dumps({
         **{
-            name: encode_delegation_cert(delegations[name])
+            name: _wire(delegations[name])
             for name in ("expired", "revoked", "wrong_agent")
         },
         "wrong_agent_fixture_private_key": _private(wrong_agent_private),
@@ -333,6 +321,18 @@ def _write_private(path: Path, content: str) -> None:
         stream.write(content)
 
 
+def _write_public(path: Path, content: str) -> None:
+    """A signed status list is public; only its signature makes it count."""
+    _write_private(path, content)
+    os.chmod(path, 0o644)
+
+
+def _replace_private(path: Path, content: str) -> None:
+    staging = path.with_name(f".{path.name}.{secrets.token_hex(8)}")
+    _write_private(staging, content)
+    os.replace(staging, path)
+
+
 def _write_manifest(
     path: Path,
     delegations: dict[str, object],
@@ -340,11 +340,14 @@ def _write_manifest(
     scenario_wire: str,
     second_wire: str,
     peer_wire: str,
+    status_wire: bytes,
 ) -> None:
     delegation = delegations["active"]
+    status_list = decode_revocation_list_v2(status_wire)
     path.write_text(json.dumps({
+        "protocol_line": PROTOCOL_LINE,
         "agent_id": delegation.subject_id,
-        "audience": VERIFIER_ID,
+        "audience": RECEIVER_ID,
         "category": DEFAULT_CATEGORY,
         "cert_id": delegation.cert_id,
         "currency": DEFAULT_CURRENCY,
@@ -357,6 +360,10 @@ def _write_manifest(
         "second_delegation_sha256": hashlib.sha256(second_wire.encode()).hexdigest(),
         "peer_authorities_sha256": hashlib.sha256(peer_wire.encode()).hexdigest(),
         "revoked_cert_id": delegations["revoked"].cert_id,
+        "status_list_sha256": hashlib.sha256(status_wire).hexdigest(),
+        "status_sequence": status_list.sequence,
+        "status_next_update": status_list.next_update,
+        "status_revoked_cert_ids": list(status_list.revoked or []),
         "wrong_agent_id": delegations["wrong_agent"].subject_id,
         "expires_at": delegation.expires_at,
         "issued_at": delegation.issued_at,
@@ -399,29 +406,56 @@ def _decode_private(value: dict[str, str]) -> HybridPrivateKey:
     return private
 
 
-def _load_principal(path: Path) -> dict:
+def _load_principal(path: Path) -> dict[str, tuple[HybridPublicKey, HybridPrivateKey]]:
+    """Load and cross-check every key: ID, public key and private key agree."""
+    expected = {
+        f"{name}_{part}"
+        for name in _PRINCIPAL_KEYS
+        for part in ("id", "public_key", "private_key")
+    }
     try:
         principal = json.loads(path.read_text())
-        if type(principal) is not dict or set(principal) != {
-            "root_id", "root_public_key", "root_private_key",
-            "agent_id", "agent_public_key", "agent_private_key",
-            "wrong_agent_id", "wrong_agent_public_key", "wrong_agent_private_key",
-            "second_agent_id", "second_agent_public_key", "second_agent_private_key",
-        }:
+        if type(principal) is not dict or set(principal) != expected:
             raise ValueError
-        for name in ("root_id", "agent_id", "wrong_agent_id", "second_agent_id"):
-            if type(principal[name]) is not str:
+        keys = {}
+        for name in _PRINCIPAL_KEYS:
+            if type(principal[f"{name}_id"]) is not str:
                 raise ValueError
-        for name in (
-            "root_public_key", "root_private_key",
-            "agent_public_key", "agent_private_key",
-            "wrong_agent_public_key", "wrong_agent_private_key",
-            "second_agent_public_key", "second_agent_private_key",
-        ):
-            if type(principal[name]) is not dict or set(principal[name]) != {
-                "ed25519", "ml_dsa_65"
-            } or not all(type(value) is str for value in principal[name].values()):
-                raise ValueError
-        return principal
+            for part in ("public_key", "private_key"):
+                value = principal[f"{name}_{part}"]
+                if type(value) is not dict or set(value) != {
+                    "ed25519", "ml_dsa_65"
+                } or not all(type(item) is str for item in value.values()):
+                    raise ValueError
+            keys[name] = (
+                _decode_public(principal[f"{name}_public_key"]),
+                _decode_private(principal[f"{name}_private_key"]),
+            )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise RuntimeError("invalid principal artifact") from None
+    for name, (public, private) in keys.items():
+        try:
+            consistent = (
+                key_id_v2(public) == principal[f"{name}_id"]
+                and public_key_of(private) == public
+            )
+        except (TypeError, ValueError, V2Error):
+            consistent = False
+        if not consistent:
+            raise RuntimeError("principal artifact is inconsistent")
+    return keys
+
+
+def _load_status_authority(principal_path: Path, keys: dict) -> StatusAuthority:
+    try:
+        state = StatusAuthority.state_from_json(
+            (principal_path.parent / STATUS_STATE_FILE).read_text()
+        )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        raise RuntimeError("invalid status publisher state") from None
+    return StatusAuthority(
+        root_public_key=keys["root"][0],
+        status_private_key=keys["status"][1],
+        status_public_key=keys["status"][0],
+        state=state,
+    )

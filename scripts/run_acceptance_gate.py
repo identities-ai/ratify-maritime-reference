@@ -51,12 +51,23 @@ CHECKS = [
         live=True,
     ),
     Check(
-        "Local reproduction from published images",
+        "Local reproduction from images built from this checkout",
         ["python3", "scripts/reproduce_gate_locally.py"],
         REPOSITORY,
-        detail="requires Docker; downloads the published image digests",
+        # RATIFY_V2_PIN: reproduce from published reviewed v2 digests once
+        # they exist, as the v1 gate did.
+        detail="requires Docker and vendor/ratify-protocol; builds both images",
     ),
 ]
+
+# The Protocol v2 record this branch's claims rest on. The two deployment
+# artifacts beside it are the Protocol v1 deployment, kept as dated history.
+V2_RECORD = Path("evidence") / "protocol-v2-local-reproduction.json"
+V1_DEPLOYMENT_NOTICE = (
+    "The recorded deployment runs Protocol v1 (evidence dated 2026-09). This "
+    "checkout is Protocol v2, and no v2 deployment has been made, so the live "
+    "gates would test code this checkout does not contain. They are not run."
+)
 
 
 DELEGATION_CACHE = Path.home() / ".ratify" / "deployed-material"
@@ -207,21 +218,54 @@ def _evidence_is_current() -> tuple[str, str]:
         if "maritime_attestation" not in recorded.get("deployment", {}):
             problems.append(f"{name}: missing the maritime_attestation field")
 
-    # The reproduction is the check a sceptic runs, so it has to reproduce the
-    # deployment the evidence describes. These drifted apart once already,
-    # silently, because both sides passed on their own.
-    reproducer = (REPOSITORY / "scripts" / "reproduce_gate_locally.py").read_text()
-    isolation = json.loads(
-        (REPOSITORY / "evidence" / "runtime-isolation-results.json")
-        .read_text(encoding="utf-8")
-    )["deployment"]
-    for role in ("agent", "receiver"):
-        digest = isolation[f"{role}_image"].split("@", 1)[1]
-        if digest not in reproducer:
-            problems.append(
-                f"reproduction does not default to the deployed {role} image"
-            )
+    # The Protocol v2 claim rests on the local reproduction record, so it has
+    # to exist, record a pass, and match the contracts as they stand now. A
+    # record that predates a contract change would otherwise keep reading as
+    # current.
+    problems.extend(_v2_record_problems())
     return ("FAIL" if problems else "pass", "; ".join(problems))
+
+
+def _v2_record_problems() -> list[str]:
+    path = REPOSITORY / V2_RECORD
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ["missing the Protocol v2 local reproduction record"]
+    problems = []
+    if record.get("protocol_line") != "v2" or not record.get("passed"):
+        problems.append("the Protocol v2 record does not record a passing v2 run")
+    if not record.get("limits"):
+        problems.append("the Protocol v2 record is missing its limits")
+    contracts = {
+        "scenarios": ("gate-expectations.json", "scenarios"),
+        "attempts": ("runtime-isolation-expectations.json", "attempts"),
+    }
+    results = record.get("results") or {}
+    for kind, (name, member) in contracts.items():
+        try:
+            contract = json.loads(
+                (REPOSITORY / "docs" / name).read_text(encoding="utf-8")
+            )[member]
+        except (OSError, json.JSONDecodeError, KeyError):
+            problems.append(f"unreadable contract {name}")
+            continue
+        observed = results.get(kind) or {}
+        if set(observed) != set(contract) or any(
+            observed[item].get(field) != required[field]
+            for item, required in contract.items()
+            for field in observed[item]
+        ):
+            problems.append(f"the Protocol v2 record does not match {name}")
+    vendored = REPOSITORY / "vendor" / "ratify-protocol" / "REVISION"
+    if vendored.is_file() and record.get("ratify_protocol_revision") != (
+        vendored.read_text(encoding="utf-8").strip()
+    ):
+        problems.append(
+            "the Protocol v2 record was made against a different vendored "
+            "ratify-protocol revision"
+        )
+    return problems
 
 
 def main() -> int:
@@ -250,6 +294,10 @@ def main() -> int:
         help="Skip the Docker reproduction, which is the slowest check.",
     )
     arguments = parser.parse_args()
+
+    if arguments.live_gates:
+        print(V1_DEPLOYMENT_NOTICE, file=sys.stderr)
+        return 2
 
     if arguments.evidence_only:
         status, detail = _evidence_is_current()

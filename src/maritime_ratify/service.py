@@ -12,6 +12,7 @@ from typing import Any
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.server import Settings as FastMCPSettings
 from mcp.server.transport_security import TransportSecuritySettings
+from ratify_protocol_v2 import HybridPublicKey
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -37,7 +38,7 @@ def create_receiver_app(
     receiver: WorkOrderReceiver,
     authenticator: CallerAuthenticator,
     presentations: PresentationRegistry,
-    caller_subjects: Mapping[str, str],
+    caller_subjects: Mapping[str, HybridPublicKey],
     allowed_hosts: list[str] | None = None,
     allow_maritime_proxy_host: bool = False,
 ) -> Starlette:
@@ -76,11 +77,12 @@ def create_receiver_app(
             action = _work_order(
                 request_id, resource, category, amount_minor, currency, description
             )
-            expected_agent_id = caller_subjects.get(caller_id)
-            if expected_agent_id is None:
+            expected_agent_key = caller_subjects.get(caller_id)
+            if expected_agent_key is None:
                 return {"decision": "DENY", "reason": "DENY_CALLER_MISMATCH"}
             result = receiver.issue_challenge(
-                action, expected_agent_id=expected_agent_id, caller_id=caller_id
+                action, expected_agent_public_key=expected_agent_key,
+                caller_id=caller_id,
             )
             if result.grant is None:
                 return {"decision": result.decision, "reason": result.reason}
@@ -88,6 +90,8 @@ def create_receiver_app(
                 "decision": "ALLOW",
                 "reason": "ALLOW",
                 "challenge": base64.b64encode(result.grant.challenge).decode("ascii"),
+                "challenge_at": result.grant.challenge_at,
+                "verifier_id": result.grant.verifier_id,
                 "session_context": base64.b64encode(
                     result.grant.session_context
                 ).decode("ascii"),

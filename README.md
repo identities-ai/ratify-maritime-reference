@@ -29,11 +29,48 @@ public demo console is live at `https://labs.ratifyprotocol.com/maritime`.
 Licensed under Apache-2.0. This reference is not a Maritime endorsement or
 partnership claim.
 
+## Protocol line
+
+This branch moves the reference to **Ratify Protocol v2** (prerelease,
+`2.0.0a1` built from source; `2.0.0b1` once published). The live deployment at
+`labs.ratifyprotocol.com/maritime` still runs the Protocol v1 images
+(`ratify-protocol==1.0.0a17`) recorded in [`evidence/`](evidence/); that
+evidence is kept unchanged as dated history. No v2 image has been published
+and no v2 deployment exists, so the live pilot is not a v2 result.
+
+What v2 changes here:
+
+- the scope stays the exact custom scope `custom:work_order:create`;
+- the work-order category is bounded by the standard
+  `com.ratifyprotocol.allowed_values/v1` evaluator profile;
+- the receiver audience is a `ratify.receiver_audience` constraint, checked
+  against the `expected_receiver_id` in every challenge;
+- amounts are signed as integer `max_amount_micros`;
+- every key ID is the 64-hex v2 key ID, and trust is pinned to complete keys;
+- revocation is a list signed by a status key separate from the root key,
+  published by the SDK's status publisher; the old environment-variable list
+  is gone;
+- challenges come from the SDK's issuance helper, and every decision passes
+  through a published receipt, the checkpoint acknowledgement, and release
+  before the handler can run.
+
+The receiver uses the SDK's in-memory reference stores for the claim store,
+receipt log, checkpoint, issuance store and security journal. They are not
+durable and the checkpoint shares the receiver's process, so this is a
+demonstration verifier, not a production-shaped one. The receiver is a
+connected hosted runtime: the SPEC-v2 single-device offline profile does not
+apply and is not claimed. The v2 result is the local record
+[`evidence/protocol-v2-2026-10-22.md`](evidence/protocol-v2-2026-10-22.md);
+see [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) for the limits.
+
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
 
-Run the current gate:
+Run the current gate. Protocol v2 is not on PyPI yet, so first export the
+SDK source from a `ratify-protocol` checkout at the recorded commit (the
+native extension builds with Rust):
 
 ```bash
+scripts/vendor_ratify_v2.sh /path/to/ratify-protocol
 uv sync --python 3.12
 uv run --python 3.12 pytest
 ```
@@ -68,21 +105,26 @@ That re-executes both deployed gates against the deployment the committed
 evidence describes, using its recorded arguments. It is the check that catches
 a renewal mistake, because the tests and the local reproduction both use fresh
 material issued on the spot and would not notice one. Its results are written
-under `.acceptance/` and never over the published artifacts.
+under `.acceptance/` and never over the published artifacts. On this branch it
+refuses to run: the recorded deployment is Protocol v1, and a live v1 result
+says nothing about v2 code.
 
-To reproduce the same nine results from the published images, without a
-repository install, a Ratify credential, or any call to the live deployment:
+To reproduce the same nine results, plus the five cross-runtime attempts, in
+local containers without a Ratify credential or any call to the live
+deployment:
 
 ```bash
 python3 scripts/reproduce_gate_locally.py
 ```
 
-It needs only Docker and Python 3.10 or newer. It issues a fresh principal
-inside the published agent image, runs one receiver and two agent containers
-from the published digests on a private Docker network, and checks every result
-against [`docs/gate-expectations.json`](docs/gate-expectations.json) and
+It needs Docker, Python 3.10 or newer, and the vendored protocol source. With
+no reviewed v2 image published yet, it builds both images from this checkout,
+issues a fresh principal inside the agent image, runs one receiver and two
+agent containers on a private Docker network, and checks every result against
+[`docs/gate-expectations.json`](docs/gate-expectations.json) and
 [`docs/runtime-isolation-expectations.json`](docs/runtime-isolation-expectations.json),
 the contracts that the deployed gates and the in-repository tests also read.
+`--agent-image` and `--receiver-image` run existing images instead.
 
 Two Maritime runtimes run the same agent image and differ only by injected
 authority: one delegated Seattle at five hundred dollars, the other Portland at
@@ -137,9 +179,24 @@ uv run --python 3.12 python scripts/issue_demo_authority.py renew \
   /secure/path/maritime-demo-renewal
 ```
 
+Revocation status is a list signed by the principal's status key, which is
+separate from the root key. A signed list is current for at most one day, so
+re-sign it at least daily and write the result to the receiver's volume:
+
+```bash
+uv run --python 3.12 python scripts/issue_demo_authority.py status \
+  /secure/path/maritime-demo-issuance/principal.json \
+  /secure/path/maritime-demo-status
+```
+
+See [`docs/CREDENTIAL-ROTATION.md`](docs/CREDENTIAL-ROTATION.md).
+
 The generated env files contain authority and credential material, not complete
 runtime configuration. Import `receiver.env` only into the receiver, then add
-`RATIFY_ALLOWED_HOSTS` after Maritime assigns its hostname. Import `agent.env`
+`RATIFY_ALLOWED_HOSTS` after Maritime assigns its hostname, and write
+`status-list.json` to the receiver's `/data/ratify/` volume. `receiver.env`
+pins the complete root, status and agent public keys and carries the
+receiver's own verifier signing key, which signs its receipts. Import `agent.env`
 only into the agent, then add the assigned receiver's
 `RATIFY_RECEIVER_MCP_URL` and `RATIFY_PRESENTATION_URL`. Maritime injects
 `PORT` into both runtimes. `principal.json` must remain outside Maritime and

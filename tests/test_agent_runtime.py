@@ -8,14 +8,13 @@ import time
 from pathlib import Path
 
 import pytest
-from ratify_protocol import encode_delegation_cert
+from ratify_protocol_v2.protocol_v2 import encode_delegation_cert_v2
 import uvicorn
 from starlette.testclient import TestClient
 
 from maritime_ratify import (
     CallerAuthenticator,
     PresentationRegistry,
-    WorkOrderReceiver,
     issue_authority,
 )
 from maritime_ratify.agent_runtime import (
@@ -31,6 +30,7 @@ from maritime_ratify.agent_runtime import (
 from maritime_ratify.deployment_issuance import issue_deployment
 import maritime_ratify.agent_runtime as runtime_module
 from maritime_ratify.service import create_receiver_app
+from support import issued_receiver, make_receiver
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,7 +38,7 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 def _environment(monkeypatch, authority):
     values = {
         "RATIFY_DELEGATION_B64": base64.b64encode(
-            encode_delegation_cert(authority.delegation).encode()
+            encode_delegation_cert_v2(authority.delegation)
         ).decode(),
         "RATIFY_AGENT_ED25519_PRIVATE_B64": base64.b64encode(
             authority.agent_private_key.ed25519
@@ -231,11 +231,9 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
     monkeypatch.setenv("RATIFY_RECEIVER_MCP_URL", "unused")
     monkeypatch.setenv("RATIFY_PRESENTATION_URL", "unused")
     settings = AgentSettings.from_environment()
-    receiver = WorkOrderReceiver(
-        trusted_root_id=settings.authority.root_id,
-        trusted_root_public_key=settings.authority.root_public_key,
-    )
-    receiver.revocation.revoke(receiver_env["RATIFY_REVOKED_CERT_IDS"])
+    # The revoked fixture is denied because the issued status list, signed by
+    # the separate status key, names it. Nothing is revoked by hand here.
+    receiver, subjects = issued_receiver(issuance, monkeypatch)
     port = _unused_port()
     receiver_app = create_receiver_app(
         receiver=receiver,
@@ -243,7 +241,9 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
             settings.receiver_token: "maritime-agent"
         }),
         presentations=PresentationRegistry(),
-        caller_subjects={"maritime-agent": settings.authority.agent_id},
+        caller_subjects={
+            "maritime-agent": subjects[receiver_env["RATIFY_CALLER_ID_PRIMARY"]]
+        },
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
     server = uvicorn.Server(uvicorn.Config(
@@ -304,16 +304,13 @@ async def _exercise_full_adversarial_gate(tmp_path, monkeypatch):
 async def _exercise_real_agent_boundary():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-    )
+    receiver = make_receiver(authority.root_public_key)
     port = _unused_port()
     receiver_app = create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-token": "maritime-agent"}),
         presentations=PresentationRegistry(),
-        caller_subjects={"maritime-agent": authority.agent_id},
+        caller_subjects={"maritime-agent": authority.delegation.subject_pub_key},
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
     server = uvicorn.Server(uvicorn.Config(
@@ -508,11 +505,7 @@ async def _exercise_measured_spans(tmp_path, monkeypatch):
         issuance, "agent.env", "delegation.json",
         "scenario-authorities.json", monkeypatch,
     )
-    receiver = WorkOrderReceiver(
-        trusted_root_id=settings.authority.root_id,
-        trusted_root_public_key=settings.authority.root_public_key,
-    )
-    receiver.revocation.revoke(receiver_env["RATIFY_REVOKED_CERT_IDS"])
+    receiver, subjects = issued_receiver(issuance, monkeypatch)
     port = _unused_port()
     app = create_receiver_app(
         receiver=receiver,
@@ -521,7 +514,8 @@ async def _exercise_measured_spans(tmp_path, monkeypatch):
         }),
         presentations=PresentationRegistry(),
         caller_subjects={
-            receiver_env["RATIFY_CALLER_ID_PRIMARY"]: settings.authority.agent_id
+            receiver_env["RATIFY_CALLER_ID_PRIMARY"]:
+                subjects[receiver_env["RATIFY_CALLER_ID_PRIMARY"]]
         },
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
@@ -599,10 +593,8 @@ async def _exercise_runtime_isolation(tmp_path, monkeypatch):
     assert secondary.supported_scenarios == _SECONDARY_SCENARIOS
     assert secondary.authority.agent_id != primary.authority.agent_id
 
-    receiver = WorkOrderReceiver(
-        trusted_root_id=primary.authority.root_id,
-        trusted_root_public_key=primary.authority.root_public_key,
-    )
+    receiver, subjects = issued_receiver(issuance, monkeypatch)
+    assert receiver.trusted_root_id == primary.authority.root_id
     port = _unused_port()
     app = create_receiver_app(
         receiver=receiver,
@@ -611,10 +603,7 @@ async def _exercise_runtime_isolation(tmp_path, monkeypatch):
             secondary.receiver_token: receiver_env["RATIFY_CALLER_ID_SECONDARY"],
         }),
         presentations=PresentationRegistry(),
-        caller_subjects={
-            receiver_env["RATIFY_CALLER_ID_PRIMARY"]: primary.authority.agent_id,
-            receiver_env["RATIFY_CALLER_ID_SECONDARY"]: secondary.authority.agent_id,
-        },
+        caller_subjects=subjects,
         allowed_hosts=[f"127.0.0.1:{port}"],
     )
     server = uvicorn.Server(uvicorn.Config(

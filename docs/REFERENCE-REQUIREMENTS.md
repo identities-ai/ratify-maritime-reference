@@ -166,6 +166,10 @@ it MUST NOT replace Ratify subject verification.
   audience, and expiry.
 - **ISS-004:** The build MUST use the published Python package
   `ratify-protocol==1.0.0a17`, not an unpublished local SDK checkout.
+  For the Protocol v2 baseline the packages are `ratify-protocol-v2` and
+  `ratify-protocol-native-v2` at `2.0.0b1`. Until they are published, the v2
+  branch builds from a recorded `ratify-protocol` commit exported by
+  `scripts/vendor_ratify_v2.sh`, and ISS-004 is open for v2.
 - **ISS-005:** Demo fixtures MUST be reproducible without publishing private
   production key material.
 
@@ -448,6 +452,17 @@ Ratify reference.
 
 ## 15. Baseline change log
 
+- **1.4, 2026-10-22:** Protocol v2 baseline on the `feat/protocol-v2` branch.
+  The scope stays the exact `custom:work_order:create`; the category bound
+  moves to `com.ratifyprotocol.allowed_values/v1`; the audience bound moves
+  to `ratify.receiver_audience` with `expected_receiver_id`; amounts are
+  signed as integer `max_amount_micros`; revocation is a signed list under a
+  separate status key; every decision passes through a published receipt,
+  the checkpoint, and release. The copied-certificate and borrowed-certificate
+  cases are now rejected before challenge claim and record the v2 error class
+  (`invalid_signature`, `chain_linkage_mismatch`) instead of `invalid`. ISS-004
+  is open for v2 until the v2 packages are published. The v1 deployment and
+  its evidence are unchanged and retained as dated history.
 - **1.3, 2026-08-29:** Upgraded the published Ratify dependency to alpha.17;
   made the public allow-plus-seven adversarial gate and machine-readable live
   artifact mandatory; preserved the existing denial semantics and completion

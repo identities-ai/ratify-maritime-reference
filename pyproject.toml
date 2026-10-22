@@ -14,7 +14,10 @@ dependencies = [
   "langchain-openai>=1,<2",
   # langchain-mcp-adapters currently targets the maintained MCP v1 line.
   "mcp>=1.28,<2",
-  "ratify-protocol==1.0.0a17",
+  # RATIFY_V2_PIN: switch both to ==2.0.0b1 from PyPI once published, and
+  # remove [tool.uv.sources] below.
+  "ratify-protocol-v2==2.0.0a1",
+  "ratify-protocol-native-v2==2.0.0a1",
   "starlette>=1.3.1,<2",
   "uvicorn>=0.35,<1",
 ]
@@ -23,6 +26,13 @@ dependencies = [
 dev = [
   "pytest==9.0.3",
 ]
+
+# RATIFY_V2_PIN: Protocol v2 is not on PyPI yet. Both packages build from the
+# protocol source exported by scripts/vendor_ratify_v2.sh; the native
+# extension needs a Rust toolchain. Delete this table at the switch.
+[tool.uv.sources]
+ratify-protocol-v2 = { path = "vendor/ratify-protocol/sdks/python-v2" }
+ratify-protocol-native-v2 = { path = "vendor/ratify-protocol/sdks/python-native-v2" }
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"

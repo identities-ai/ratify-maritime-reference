@@ -5,17 +5,17 @@ import time
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from ratify_protocol import encode_proof_bundle
+from ratify_protocol_v2.protocol_v2 import encode_proof_bundle_v2
 
 from maritime_ratify import (
     CallerAuthenticator,
     PresentationRegistry,
     WorkOrder,
-    WorkOrderReceiver,
     issue_authority,
 )
 from maritime_ratify.profile import WORK_ORDER_SCOPE
 from maritime_ratify.service import create_receiver_app
+from support import make_receiver
 
 
 def test_real_streamable_http_mcp_flow_and_business_only_schema():
@@ -37,16 +37,12 @@ def test_maritime_private_proxy_host_is_bounded():
 async def _exercise_service():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     app = create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        caller_subjects={"caller-agent": authority.agent_id},
+        caller_subjects={"caller-agent": authority.delegation.subject_pub_key},
         allowed_hosts=["test"],
     )
     args = {
@@ -86,13 +82,14 @@ async def _exercise_service():
                     assert challenge["decision"] == "ALLOW"
                     proof = authority.present(
                         challenge=base64.b64decode(challenge["challenge"]),
+                        challenge_at=challenge["challenge_at"],
+                        verifier_id=challenge["verifier_id"],
                         session_context=base64.b64decode(challenge["session_context"]),
-                        now=now,
                     )
                     upload = await http.post(
                         "/presentations",
                         json={"action": {"scope": WORK_ORDER_SCOPE, **args},
-                              "proof": encode_proof_bundle(proof)},
+                              "proof": encode_proof_bundle_v2(proof).decode()},
                     )
                     assert upload.status_code == 200
                     reference = upload.json()["reference"]
@@ -111,16 +108,12 @@ async def _exercise_dependency_failure():
 
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     app = create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=RaisingRegistry(clock=lambda: now),
-        caller_subjects={"caller-agent": authority.agent_id},
+        caller_subjects={"caller-agent": authority.delegation.subject_pub_key},
         allowed_hosts=["test"],
     )
     args = {
@@ -165,16 +158,12 @@ async def _exercise_dependency_failure():
 async def _exercise_service_rejections():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     app = create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        caller_subjects={"caller-agent": authority.agent_id},
+        caller_subjects={"caller-agent": authority.delegation.subject_pub_key},
         allowed_hosts=["test"],
     )
     args = {
@@ -251,14 +240,10 @@ async def _exercise_maritime_proxy_host():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
     app = create_receiver_app(
-        receiver=WorkOrderReceiver(
-            trusted_root_id=authority.root_id,
-            trusted_root_public_key=authority.root_public_key,
-            clock=lambda: now,
-        ),
+        receiver=make_receiver(authority.root_public_key, clock=lambda: now),
         authenticator=CallerAuthenticator({"agent-secret": "caller-agent"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        caller_subjects={"caller-agent": authority.agent_id},
+        caller_subjects={"caller-agent": authority.delegation.subject_pub_key},
         allowed_hosts=["test"],
         allow_maritime_proxy_host=True,
     )
@@ -311,16 +296,12 @@ async def _exercise_unmapped_caller():
     """
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     app = create_receiver_app(
         receiver=receiver,
         authenticator=CallerAuthenticator({"agent-secret": "caller-unmapped"}),
         presentations=PresentationRegistry(clock=lambda: now),
-        caller_subjects={"caller-agent": authority.agent_id},
+        caller_subjects={"caller-agent": authority.delegation.subject_pub_key},
         allowed_hosts=["test"],
     )
     args = {

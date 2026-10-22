@@ -20,7 +20,7 @@ async def _exercise_interceptor():
 
     async def challenge_provider(arguments):
         seen["challenge_arguments"] = arguments
-        return ChallengeMaterial(b"c" * 32, b"s" * 32)
+        return ChallengeMaterial(b"c" * 32, now, "a" * 64, b"s" * 32)
 
     async def uploader(action, proof_wire):
         seen["uploaded_action"] = action
@@ -33,7 +33,6 @@ async def _exercise_interceptor():
 
     interceptor = AuthorityInterceptor(
         authority=authority,
-        clock=lambda: now,
         challenge_provider=challenge_provider,
         presentation_uploader=uploader,
     )
@@ -77,7 +76,7 @@ async def _exercise_interceptor_snapshot():
         seen["challenge_arguments"] = arguments
         challenge_started.set()
         await release_challenge.wait()
-        return ChallengeMaterial(b"c" * 32, b"s" * 32)
+        return ChallengeMaterial(b"c" * 32, now, "a" * 64, b"s" * 32)
 
     async def uploader(action, proof_wire):
         seen["uploaded_action"] = action
@@ -89,7 +88,6 @@ async def _exercise_interceptor_snapshot():
 
     interceptor = AuthorityInterceptor(
         authority=authority,
-        clock=lambda: now,
         challenge_provider=challenge_provider,
         presentation_uploader=uploader,
     )

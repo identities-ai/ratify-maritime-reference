@@ -5,23 +5,60 @@ import stat
 from pathlib import Path
 
 import pytest
-from ratify_protocol import decode_delegation_cert, verify_delegation_signature
-from ratify_protocol import generate_human_root
+from ratify_protocol_v2 import HybridPublicKey, generate_keypair_v2, key_id_v2
+from ratify_protocol_v2.constraints_v2 import (
+    CONSTRAINT_MAX_AMOUNT,
+    CONSTRAINT_RESOURCE_PATH,
+)
+from ratify_protocol_v2.protocol_v2 import (
+    decode_delegation_cert_v2,
+    decode_revocation_list_v2,
+    verify_delegation_cert_v2_signature,
+    verify_revocation_list_v2_signature,
+)
 
 from maritime_ratify.deployment_issuance import (
     DEMO_VALIDITY_SECONDS,
     issue_deployment,
+    refresh_status,
     renew_deployment,
 )
 from maritime_ratify.profile import (
+    MICROS_PER_MINOR,
     SECOND_MAX_AMOUNT_MINOR,
     SECOND_RESOURCE,
+    STATUS_LIST_LIFETIME_SECONDS,
     VOLUME_DIRECTORY,
 )
 
 
 def _env(path):
     return dict(line.split("=", 1) for line in path.read_text().splitlines())
+
+
+def decode_delegation_cert(text):
+    return decode_delegation_cert_v2(text.encode())
+
+
+def verify_delegation_signature(delegation):
+    verify_delegation_cert_v2_signature(delegation)
+    return True
+
+
+def _public(value):
+    return HybridPublicKey(
+        ed25519=base64.b64decode(value["ed25519"]),
+        ml_dsa_65=base64.b64decode(value["ml_dsa_65"]),
+    )
+
+
+def _status_list(directory, principal):
+    """Decode the signed list and check it under the separate status key."""
+    status = decode_revocation_list_v2((directory / "status-list.json").read_bytes())
+    verify_revocation_list_v2_signature(
+        status, principal["root_id"], _public(principal["status_public_key"])
+    )
+    return status
 
 
 def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_path):
@@ -41,11 +78,31 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
         "agent.env", "agent-b.env", "delegation.json", "delegation-b.json",
         "manifest.json", "principal.json", "receiver.env",
         "scenario-authorities.json", "scenario-authorities-b.json",
+        "status-list.json", "status-state.json",
     }
     assert "root_private_key" in principal
+    assert "status_private_key" in principal
     assert "agent_private_key" in principal
     assert "wrong_agent_private_key" in principal
-    assert not any("PRIVATE" in key for key in receiver)
+    # Every ID is the full 64-hex v2 key ID of its complete key.
+    for name in ("root", "status", "agent", "wrong_agent", "second_agent"):
+        assert principal[f"{name}_id"] == key_id_v2(
+            _public(principal[f"{name}_public_key"])
+        )
+        assert len(principal[f"{name}_id"]) == 64
+    # The receiver holds only its own verifier signing key, never principal
+    # material.
+    assert [key for key in receiver if "PRIVATE" in key] == [
+        "RATIFY_VERIFIER_ED25519_PRIVATE_B64",
+        "RATIFY_VERIFIER_ML_DSA_65_PRIVATE_B64",
+    ]
+    for name in ("root", "status", "agent", "wrong_agent", "second_agent"):
+        assert principal[f"{name}_private_key"]["ed25519"] not in receiver.values()
+    # Status is signed by a key that is not the root.
+    assert receiver["RATIFY_STATUS_KEY_ID"] == principal["status_id"]
+    assert receiver["RATIFY_STATUS_KEY_ID"] != receiver["RATIFY_ROOT_ID"]
+    assert receiver["RATIFY_STATUS_LIST_PATH"] == f"{VOLUME_DIRECTORY}/status-list.json"
+    assert "RATIFY_REVOKED_CERT_IDS" not in receiver
     assert "RATIFY_ROOT_ID" not in agent
     assert "RATIFY_AGENT_ED25519_PRIVATE_B64" in agent
     # Issued configuration must point at the volume the deployment reads from,
@@ -65,9 +122,12 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert set(scenarios["wrong_agent_fixture_private_key"]) == {
         "ed25519", "ml_dsa_65"
     }
-    assert receiver["RATIFY_REVOKED_CERT_IDS"] == decode_delegation_cert(
-        scenarios["revoked"]
-    ).cert_id
+    status = _status_list(output, principal)
+    assert status.revoked == [decode_delegation_cert(scenarios["revoked"]).cert_id]
+    assert status.next_update - status.updated_at == STATUS_LIST_LIFETIME_SECONDS
+    assert manifest["status_list_sha256"] == hashlib.sha256(
+        (output / "status-list.json").read_bytes()
+    ).hexdigest()
     assert agent["RATIFY_RECEIVER_TOKEN"] == receiver["RATIFY_CALLER_TOKEN_PRIMARY"]
     assert agent["RATIFY_DEMO_TOKEN"] != agent["RATIFY_RECEIVER_TOKEN"]
 
@@ -92,12 +152,12 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     assert verify_delegation_signature(second_delegation)
     assert [
         constraint.resource_id for constraint in second_delegation.constraints
-        if constraint.type == "resource_path"
+        if constraint.type == CONSTRAINT_RESOURCE_PATH
     ] == [SECOND_RESOURCE]
     assert [
-        constraint.max_amount for constraint in second_delegation.constraints
-        if constraint.type == "max_amount"
-    ] == [SECOND_MAX_AMOUNT_MINOR / 100]
+        constraint.max_amount_micros for constraint in second_delegation.constraints
+        if constraint.type == CONSTRAINT_MAX_AMOUNT
+    ] == [SECOND_MAX_AMOUNT_MINOR * MICROS_PER_MINOR]
     assert set(peer) == {"peer_delegation"}
     assert decode_delegation_cert(peer["peer_delegation"]).subject_id == (
         delegation.subject_id
@@ -119,10 +179,11 @@ def test_issuance_separates_principal_receiver_agent_and_public_manifest(tmp_pat
     for name in (
         "principal.json", "receiver.env", "agent.env", "agent-b.env",
         "scenario-authorities.json", "delegation-b.json",
-        "scenario-authorities-b.json",
+        "scenario-authorities-b.json", "status-state.json",
     ):
         assert stat.S_IMODE((output / name).stat().st_mode) == 0o600
     assert stat.S_IMODE((output / "manifest.json").stat().st_mode) == 0o644
+    assert stat.S_IMODE((output / "status-list.json").stat().st_mode) == 0o644
 
 
 def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
@@ -137,6 +198,7 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     assert set(path.name for path in renewal.iterdir()) == {
         "delegation.json", "delegation-b.json", "manifest.json",
         "scenario-authorities.json", "scenario-authorities-b.json",
+        "status-list.json",
     }
     assert renewed.issuer_id == original.issuer_id
     assert renewed.subject_id == original.subject_id
@@ -172,6 +234,57 @@ def test_renewal_preserves_identity_and_emits_only_new_delegation(tmp_path):
     assert stat.S_IMODE((renewal / "delegation.json").stat().st_mode) == 0o600
     assert stat.S_IMODE((renewal / "scenario-authorities.json").stat().st_mode) == 0o600
 
+    # The new revoked fixture joins the cumulative signed list, and the
+    # publisher state next to the principal advances so the next signing
+    # continues the sequence.
+    principal = json.loads((initial / "principal.json").read_text())
+    before = _status_list(initial, principal)
+    after = _status_list(renewal, principal)
+    renewed_revoked = decode_delegation_cert(
+        json.loads((renewal / "scenario-authorities.json").read_text())["revoked"]
+    ).cert_id
+    assert after.sequence == before.sequence + 1
+    assert set(after.revoked) == set(before.revoked) | {renewed_revoked}
+    state = json.loads((initial / "status-state.json").read_text())
+    assert state["sequence"] == after.sequence
+    assert manifest["status_revoked_cert_ids"] == after.revoked
+
+
+def test_status_refresh_re_signs_the_same_set_later(tmp_path):
+    """A signed list lasts one day, so the principal re-signs it daily."""
+    initial = tmp_path / "initial"
+    refresh = tmp_path / "refresh"
+    issue_deployment(initial, now=1_800_000_000)
+    principal = json.loads((initial / "principal.json").read_text())
+    before = _status_list(initial, principal)
+
+    refresh_status(initial / "principal.json", refresh, now=1_800_080_000)
+
+    after = _status_list(refresh, principal)
+    assert set(path.name for path in refresh.iterdir()) == {"status-list.json"}
+    assert after.sequence == before.sequence
+    assert after.revoked == before.revoked
+    assert after.updated_at == 1_800_080_000
+    assert after.next_update == 1_800_080_000 + STATUS_LIST_LIFETIME_SECONDS
+
+
+def test_issued_receiver_configuration_starts_a_receiver(tmp_path, monkeypatch):
+    """The receiver entry point accepts exactly what issuance emits."""
+    import importlib.util
+
+    output = tmp_path / "issuance"
+    issue_deployment(output)
+    for name, value in _env(output / "receiver.env").items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("RATIFY_STATUS_LIST_PATH", str(output / "status-list.json"))
+    monkeypatch.setenv("RATIFY_ALLOWED_HOSTS", "localhost:*")
+    start = Path(__file__).resolve().parents[1] / "apps" / "receiver" / "start.py"
+    spec = importlib.util.spec_from_file_location("issued_receiver_start", start)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.build_app() is not None
+
 
 def test_issuance_refuses_to_overwrite_an_existing_directory(tmp_path):
     output = tmp_path / "issuance"
@@ -188,7 +301,7 @@ def test_issuance_refuses_to_overwrite_an_existing_directory(tmp_path):
 @pytest.mark.parametrize("tamper", [
     "foreign_root_private", "short_root_public", "short_agent_public",
     "swapped_root_id", "swapped_agent_id", "short_root_private",
-    "missing_root_private", "invalid_root_private",
+    "missing_root_private", "invalid_root_private", "foreign_status_private",
 ])
 def test_renewal_rejects_inconsistent_principal_without_output(tmp_path, tamper):
     initial = tmp_path / "initial"
@@ -197,9 +310,9 @@ def test_renewal_rejects_inconsistent_principal_without_output(tmp_path, tamper)
     path = initial / "principal.json"
     principal = json.loads(path.read_text())
 
-    if tamper == "foreign_root_private":
-        _, foreign = generate_human_root()
-        principal["root_private_key"] = {
+    if tamper in ("foreign_root_private", "foreign_status_private"):
+        _, foreign = generate_keypair_v2()
+        principal[tamper.removeprefix("foreign_")[:-len("_private")] + "_private_key"] = {
             "ed25519": base64.b64encode(foreign.ed25519).decode(),
             "ml_dsa_65": base64.b64encode(foreign.ml_dsa_65).decode(),
         }
@@ -208,9 +321,9 @@ def test_renewal_rejects_inconsistent_principal_without_output(tmp_path, tamper)
     elif tamper == "short_agent_public":
         principal["agent_public_key"]["ed25519"] = base64.b64encode(b"bad").decode()
     elif tamper == "swapped_root_id":
-        principal["root_id"] = "root:tampered"
+        principal["root_id"] = "0" * 64
     elif tamper == "swapped_agent_id":
-        principal["agent_id"] = "agent:tampered"
+        principal["agent_id"] = principal["second_agent_id"]
     elif tamper == "short_root_private":
         principal["root_private_key"]["ed25519"] = base64.b64encode(b"bad").decode()
     elif tamper == "missing_root_private":

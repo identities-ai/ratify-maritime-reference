@@ -60,12 +60,17 @@ def test_gates_disclose_what_a_digest_cannot_bind(name, required):
     assert "maritime_attestation" in binding
 
 
-def test_issuance_exposes_both_commands_without_running_them():
+def test_issuance_exposes_every_command_without_running_them():
     parser = _load("issue_demo_authority").build_parser()
     assert parser.parse_args(["issue", "/tmp/out"]).command == "issue"
     renewal = parser.parse_args(["renew", "/tmp/principal.json", "/tmp/out"])
     assert (renewal.command, str(renewal.principal)) == (
         "renew", "/tmp/principal.json"
+    )
+    # The daily status re-signing has to be reachable from the same command.
+    status = parser.parse_args(["status", "/tmp/principal.json", "/tmp/out"])
+    assert (status.command, str(status.principal)) == (
+        "status", "/tmp/principal.json"
     )
 
 
@@ -137,7 +142,41 @@ def test_acceptance_gate_detects_stale_evidence(monkeypatch, tmp_path):
     monkeypatch.setattr(gate, "REPOSITORY", stale)
     status, detail = gate._evidence_is_current()
     assert status == "FAIL"
-    assert "does not default to the deployed agent image" in detail
+    assert "missing the Protocol v2 local reproduction record" in detail
+
+
+def test_acceptance_gate_rejects_a_v2_record_that_predates_its_contract(
+    monkeypatch, tmp_path
+):
+    """A passing record must still match the contracts as they stand now."""
+    gate = _load("run_acceptance_gate")
+    repository = SCRIPTS.parent
+    copy = tmp_path / "repo"
+    for relative in (
+        "evidence/adversarial-results.json",
+        "evidence/runtime-isolation-results.json",
+        "evidence/protocol-v2-local-reproduction.json",
+        "docs/gate-expectations.json",
+        "docs/runtime-isolation-expectations.json",
+    ):
+        (copy / relative).parent.mkdir(parents=True, exist_ok=True)
+        (copy / relative).write_text((repository / relative).read_text())
+    monkeypatch.setattr(gate, "REPOSITORY", copy)
+    assert gate._evidence_is_current()[0] == "pass"
+
+    contract = json.loads((copy / "docs/gate-expectations.json").read_text())
+    contract["scenarios"]["copied_certificate"]["verification_status"] = "invalid"
+    (copy / "docs/gate-expectations.json").write_text(json.dumps(contract))
+    status, detail = gate._evidence_is_current()
+    assert status == "FAIL"
+    assert "does not match gate-expectations.json" in detail
+
+
+def test_live_gates_refuse_while_the_deployment_is_protocol_v1(monkeypatch):
+    """A live v1 result must never be read as evidence for v2 code."""
+    gate = _load("run_acceptance_gate")
+    monkeypatch.setattr(sys, "argv", ["run_acceptance_gate.py", "--live-gates"])
+    assert gate.main() == 2
 
 
 def test_live_gate_checks_are_built_from_the_recorded_deployment(
@@ -248,7 +287,7 @@ def test_isolation_gate_derives_subjects_rather_than_accepting_them():
     assert "--secondary-delegation" in source
     assert "--primary-agent-subject" not in source
     assert "--secondary-agent-subject" not in source
-    assert "decode_delegation_cert" in source
+    assert "decode_delegation_cert_v2" in source
 
 
 def test_live_gates_report_rather_than_fail_without_a_delegation(monkeypatch, tmp_path):

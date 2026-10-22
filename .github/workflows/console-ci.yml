@@ -127,6 +127,18 @@ jobs:
         with:
           enable-cache: true
 
+      # RATIFY_V2_PIN: Protocol v2 is not on PyPI yet, so the SDK installs
+      # from this exact ratify-protocol commit (the native extension builds
+      # with the runner's Rust toolchain). Delete these two steps when
+      # pyproject.toml pins the published 2.0.0b1 packages.
+      - uses: actions/checkout@v7
+        with:
+          repository: identities-ai/ratify-protocol
+          ref: 5f1093e07eaf280dfe6499a05036515b0aeaa98c
+          path: .ratify-protocol
+      - name: Vendor the Protocol v2 SDK source
+        run: scripts/vendor_ratify_v2.sh .ratify-protocol
+
       - name: Test
         run: uv run --python 3.12 pytest -q
 

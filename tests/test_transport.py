@@ -2,41 +2,40 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 
 import pytest
-from ratify_protocol import MAX_PROOF_BUNDLE_BYTES, encode_proof_bundle
+from ratify_protocol_v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2 as MAX_PROOF_BUNDLE_BYTES
+from ratify_protocol_v2.protocol_v2 import encode_proof_bundle_v2
 
 from maritime_ratify import (
     CallerAuthenticator,
     CarrierDenied,
     PresentationRegistry,
     WorkOrder,
-    WorkOrderReceiver,
     issue_authority,
 )
 from maritime_ratify.profile import WORK_ORDER_SCOPE
+from support import make_receiver
 
 
 def fixture():
     now = int(time.time())
     authority = issue_authority(now=now - 1)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     action = WorkOrder(
         "req-transport", WORK_ORDER_SCOPE, "site:warehouse-seattle-01",
         "electrical", 42_000, "USD", "Inspect and repair loading-bay lighting",
     )
     challenge = receiver.issue_challenge(
-        action, expected_agent_id=authority.agent_id, caller_id="caller-a"
+        action, expected_agent_public_key=authority.delegation.subject_pub_key,
+        caller_id="caller-a",
     ).grant
     assert challenge is not None
     bundle = authority.present(
         challenge=challenge.challenge,
+        challenge_at=challenge.challenge_at,
+        verifier_id=challenge.verifier_id,
         session_context=challenge.session_context,
-        now=now,
     )
-    return now, authority, receiver, action, encode_proof_bundle(bundle)
+    return now, authority, receiver, action, encode_proof_bundle_v2(bundle).decode()
 
 
 def headers(reference):

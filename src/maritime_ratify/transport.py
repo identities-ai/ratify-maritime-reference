@@ -9,7 +9,9 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 
-from ratify_protocol import MAX_PROOF_BUNDLE_BYTES, ProofBundle, decode_proof_bundle
+from ratify_protocol_v2 import V2Error
+from ratify_protocol_v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2
+from ratify_protocol_v2.protocol_v2 import ProofBundleV2, decode_proof_bundle_v2
 
 from .action import WorkOrder
 
@@ -28,7 +30,7 @@ class CarrierDenied(ValueError):
 class _StoredPresentation:
     caller_id: str
     canonical_action: bytes
-    bundle: ProofBundle
+    bundle: ProofBundleV2
     expires_at: int
 
 
@@ -68,13 +70,16 @@ class PresentationRegistry:
     def register(self, *, caller_id: str, action: WorkOrder, proof_wire: str | bytes) -> str:
         if not caller_id or type(action) is not WorkOrder:
             raise CarrierDenied("DENY_INVALID_REQUEST")
-        size = len(proof_wire) if isinstance(proof_wire, bytes) else len(proof_wire.encode())
-        if size > MAX_PROOF_BUNDLE_BYTES:
+        try:
+            wire = proof_wire if isinstance(proof_wire, bytes) else proof_wire.encode()
+        except (AttributeError, UnicodeEncodeError):
+            raise CarrierDenied("DENY_INVALID_REQUEST") from None
+        if len(wire) > MAX_PROOF_BUNDLE_BYTES_V2:
             raise CarrierDenied("DENY_OVERSIZED_INPUT")
         try:
             canonical_action = action.canonical_bytes()
-            bundle = decode_proof_bundle(proof_wire)
-        except (TypeError, ValueError):
+            bundle = decode_proof_bundle_v2(wire)
+        except (TypeError, ValueError, V2Error):
             raise CarrierDenied("DENY_INVALID_REQUEST") from None
         with self._lock:
             now = self._clock()
@@ -93,7 +98,7 @@ class PresentationRegistry:
         raw_headers: Iterable[tuple[bytes, bytes]],
         caller_id: str,
         action: WorkOrder,
-    ) -> ProofBundle:
+    ) -> ProofBundleV2:
         reference = _single_header(
             raw_headers, PROOF_REFERENCE_HEADER, MAX_PROOF_REFERENCE_BYTES
         )

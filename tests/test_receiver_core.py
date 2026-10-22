@@ -1,47 +1,47 @@
 from dataclasses import replace
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 import inspect
 import threading
 import time
 
 import pytest
-from ratify_protocol import (
-    Constraint,
-    DelegationCert,
-    HybridSignature,
-    MemoryChallengeStore,
-    OperationContext,
-    PROTOCOL_VERSION,
-    SessionContextInputs,
-    build_session_context,
-    generate_agent,
-    generate_human_root,
-    issue_delegation,
-    operation_context_hash,
-    sign_challenge,
-)
+from ratify_protocol_v2 import generate_keypair_v2, key_id_v2
+from ratify_protocol_v2.constraints_v2 import CONSTRAINT_MAX_AMOUNT
+from ratify_protocol_v2.v2reference.store import Store
 
 from maritime_ratify import WorkOrder, WorkOrderReceiver, issue_authority
-from maritime_ratify.authority import AuthorityFixture, WORK_ORDER_SCOPE
+from maritime_ratify.authority import (
+    AuthorityFixture,
+    WORK_ORDER_SCOPE,
+    bounded_constraints,
+    issue_bounded_delegation,
+)
 from maritime_ratify.profile import (
-    AUDIENCE_CONSTRAINT,
-    CATEGORY_CONSTRAINT,
     RECEIVER_CEILING_MINOR,
     SECOND_RESOURCE,
-    VERIFIER_ID,
 )
+from maritime_ratify.receiver import work_order_session_context
+from support import SignedStatus, make_receiver
 
 
 def setup_reference(**authority_options):
     now = int(time.time())
     authority = issue_authority(now=now - 1, **authority_options)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     return now, authority, receiver
+
+
+def agent_key(authority):
+    return authority.delegation.subject_pub_key
+
+
+def sign(authority, grant, *, session_context=None):
+    return authority.present(
+        challenge=grant.challenge,
+        challenge_at=grant.challenge_at,
+        verifier_id=grant.verifier_id,
+        session_context=grant.session_context if session_context is None else session_context,
+    )
 
 
 def action(**changes):
@@ -59,39 +59,31 @@ def action(**changes):
 
 
 def present(authority, receiver, requested, now):
-    challenge = receiver.issue_challenge(requested, expected_agent_id=authority.agent_id)
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_public_key=agent_key(authority)
+    )
     assert challenge.decision == "ALLOW"
     assert challenge.grant is not None
-    return authority.present(
-        challenge=challenge.grant.challenge,
-        session_context=challenge.grant.session_context,
-        now=now,
-    )
+    assert challenge.grant.challenge_at == now
+    return sign(authority, challenge.grant)
 
 
 def custom_authority(now, constraints):
-    root, root_private = generate_human_root()
-    agent, agent_private = generate_agent("Maritime Work Order Agent", "custom")
-    cert = DelegationCert(
-        cert_id="maritime-test-custom",
-        version=PROTOCOL_VERSION,
-        issuer_id=root.id,
-        issuer_pub_key=root.public_key,
-        subject_id=agent.id,
-        subject_pub_key=agent.public_key,
-        scope=[WORK_ORDER_SCOPE],
-        constraints=list(constraints),
+    root_public, root_private = generate_keypair_v2()
+    agent_public, agent_private = generate_keypair_v2()
+    cert = issue_bounded_delegation(
+        root_public_key=root_public,
+        root_private_key=root_private,
+        agent_public_key=agent_public,
         issued_at=now - 1,
         expires_at=now + 3600,
-        signature=HybridSignature(ed25519=b"", ml_dsa_65=b""),
+        constraints=list(constraints),
     )
-    issue_delegation(cert, root_private)
-    authority = AuthorityFixture(root.id, root.public_key, agent.id, agent_private, cert)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=root.id,
-        trusted_root_public_key=root.public_key,
-        clock=lambda: now,
+    authority = AuthorityFixture(
+        key_id_v2(root_public), root_public, key_id_v2(agent_public),
+        agent_private, cert,
     )
+    receiver = make_receiver(root_public, clock=lambda: now)
     return authority, receiver
 
 
@@ -132,11 +124,7 @@ def test_changed_action_denies_before_handler():
 def test_receiver_owns_clock_and_expired_authority_denies():
     now = int(time.time())
     authority = issue_authority(now=now - 7200, expires_at=now - 3600)
-    receiver = WorkOrderReceiver(
-        trusted_root_id=authority.root_id,
-        trusted_root_public_key=authority.root_public_key,
-        clock=lambda: now,
-    )
+    receiver = make_receiver(authority.root_public_key, clock=lambda: now)
     requested = action(request_id="req-expired")
     result = receiver.execute(requested, present(authority, receiver, requested, now))
     assert result["reason"] == "DENY_EXPIRED"
@@ -146,7 +134,9 @@ def test_receiver_owns_clock_and_expired_authority_denies():
 
 def test_revoked_authority_denies_before_handler():
     now, authority, receiver = setup_reference()
-    receiver.revocation.revoke(authority.delegation.cert_id)
+    # Revocation reaches the receiver only as a list signed by the separate
+    # status key.
+    receiver.test_status.revoke(authority.delegation.cert_id)
     requested = action(request_id="req-revoked")
     result = receiver.execute(requested, present(authority, receiver, requested, now))
     assert result["reason"] == "DENY_REVOKED"
@@ -173,30 +163,19 @@ def test_concurrent_replay_invokes_handler_at_most_once():
     assert receiver.handler_invocations == 1
 
 
-class NaiveSharedStore:
-    """Protocol-compatible store with a deliberately non-atomic consume."""
+class SlowClaimStore(Store):
+    """The reference claim store with a deliberate pause before each claim."""
 
-    def __init__(self):
-        self._inner = MemoryChallengeStore(max_size=128)
-
-    def issue(self, session_context, ttl_seconds):
-        return self._inner.issue(session_context, ttl_seconds)
-
-    def validate(self, challenge, session_context, now):
-        return self._inner.validate(challenge, session_context, now)
-
-    def consume(self, challenge, session_context, now):
-        error = self._inner.validate(challenge, session_context, now)
-        if error is not None:
-            return error
+    def claim_v2(self, ctx, claim):
         time.sleep(0.002)
-        self._inner.consume(challenge, session_context, now)
-        return None
+        return super().claim_v2(ctx, claim)
 
 
-def test_receiver_owns_single_invocation_with_non_atomic_store():
+def test_receiver_owns_single_invocation_with_slow_claim_store():
     now, authority, receiver = setup_reference()
-    receiver.challenge_store = NaiveSharedStore()
+    receiver.claim_store = SlowClaimStore(
+        now, 30, receiver._log_id, receiver._verifier_private_key
+    )
     requested = action(request_id="req-naive-store")
     proof = present(authority, receiver, requested, now)
     with ThreadPoolExecutor(max_workers=16) as pool:
@@ -208,24 +187,15 @@ def test_receiver_owns_single_invocation_with_non_atomic_store():
 def test_wrong_agent_denies_before_handler():
     now, authority, receiver = setup_reference()
     requested = action(request_id="req-agent")
-    challenge = receiver.issue_challenge(requested, expected_agent_id=authority.agent_id)
-    assert challenge.grant is not None
-    hostile, hostile_private = generate_agent("Hostile", "custom")
-    proof = authority.present(
-        challenge=challenge.grant.challenge,
-        session_context=challenge.grant.session_context,
-        now=now,
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_public_key=agent_key(authority)
     )
+    assert challenge.grant is not None
+    hostile_public, _ = generate_keypair_v2()
     proof = replace(
-        proof,
-        agent_id=hostile.id,
-        agent_pub_key=hostile.public_key,
-        challenge_sig=sign_challenge(
-            challenge.grant.challenge,
-            now,
-            hostile_private,
-            challenge.grant.session_context,
-        ),
+        sign(authority, challenge.grant),
+        agent_id=key_id_v2(hostile_public),
+        agent_pub_key=hostile_public,
     )
     result = receiver.execute(requested, proof)
     assert result["reason"] == "DENY_SUBJECT_MISMATCH"
@@ -236,19 +206,17 @@ def test_untrusted_issuer_denies_before_handler():
     now, authority, receiver = setup_reference()
     hostile = issue_authority(now=now - 1)
     requested = action(request_id="req-issuer")
-    challenge = receiver.issue_challenge(requested, expected_agent_id=hostile.agent_id)
-    assert challenge.grant is not None
-    proof = hostile.present(
-        challenge=challenge.grant.challenge,
-        session_context=challenge.grant.session_context,
-        now=now,
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_public_key=agent_key(hostile)
     )
+    assert challenge.grant is not None
+    proof = sign(hostile, challenge.grant)
     result = receiver.execute(requested, proof)
     assert result["reason"] == "DENY_UNTRUSTED_ISSUER"
     assert result["handler_invocations"] == 0
 
 
-@pytest.mark.parametrize("missing", ["challenge_store", "revocation"])
+@pytest.mark.parametrize("missing", ["claim_store", "status_feed"])
 def test_missing_verifier_state_fails_closed(missing):
     now, authority, receiver = setup_reference()
     requested = action(request_id="req-state")
@@ -270,7 +238,9 @@ def test_wrong_audience_denies_before_handler():
 def test_scope_declared_by_caller_must_match_profile():
     now, authority, receiver = setup_reference()
     requested = action(request_id="req-scope", scope="custom:unrelated")
-    challenge = receiver.issue_challenge(requested, expected_agent_id=authority.agent_id)
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_public_key=agent_key(authority)
+    )
     assert challenge.reason == "DENY_INVALID_REQUEST"
     assert receiver.handler_invocations == 0
 
@@ -280,20 +250,22 @@ def test_invalid_amount_is_rejected_at_challenge(amount):
     _, authority, receiver = setup_reference()
     result = receiver.issue_challenge(
         action(request_id=f"req-invalid-{amount}", amount_minor=amount),
-        expected_agent_id=authority.agent_id,
+        expected_agent_public_key=agent_key(authority),
     )
     assert result.reason == "DENY_INVALID_REQUEST"
     assert receiver.handler_invocations == 0
 
 
-def test_signed_amount_is_major_units_while_action_uses_minor_units():
+def test_signed_amount_is_integer_micros_while_action_uses_cents():
+    """v2 signs amounts in integer micro-units of the major unit, never a float."""
     _, authority, _ = setup_reference()
     amount = next(
         constraint
         for constraint in authority.delegation.constraints
-        if constraint.type == "max_amount"
+        if constraint.type == CONSTRAINT_MAX_AMOUNT
     )
-    assert amount.max_amount == 500.0
+    assert amount.max_amount_micros == 500_000_000
+    assert type(amount.max_amount_micros) is int
 
 
 def test_duck_typed_action_cannot_bypass_operation_binding():
@@ -316,9 +288,8 @@ def test_duck_typed_action_cannot_bypass_operation_binding():
 def test_missing_required_signed_bound_denies_in_local_policy():
     now = int(time.time())
     constraints = [
-        Constraint(type="resource_path", resource_id="site:warehouse-seattle-01"),
-        Constraint(type=CATEGORY_CONSTRAINT, params={"allowed": "electrical"}),
-        Constraint(type=AUDIENCE_CONSTRAINT, params={"allowed": VERIFIER_ID}),
+        constraint for constraint in bounded_constraints()
+        if constraint.type != CONSTRAINT_MAX_AMOUNT
     ]
     authority, receiver = custom_authority(now, constraints)
     requested = action(request_id="req-unbounded")
@@ -351,13 +322,12 @@ def test_revocation_backend_failures_are_stable_and_redacted(mode):
     requested = action(request_id=f"req-revocation-{mode}")
     proof = present(authority, receiver, requested, now)
 
-    class BrokenRevocation:
-        def is_revoked(self, cert_id):
-            if mode == "raise":
-                raise ConnectionError("redis://secret-host:6379 refused")
-            return False, "backend unreachable"
+    def broken_status():
+        if mode == "raise":
+            raise ConnectionError("redis://secret-host:6379 refused")
+        return b'{"unsigned": "backend unreachable"}'
 
-    receiver.revocation = BrokenRevocation()
+    receiver.status_feed = broken_status
     result = receiver.execute(requested, proof)
     assert result["reason"] == "DENY_VERIFIER_UNAVAILABLE"
     assert "secret" not in repr(result)
@@ -375,30 +345,15 @@ def test_wrong_currency_has_stable_constraint_reason():
 def test_foreign_session_context_has_stable_audience_reason():
     now, authority, receiver = setup_reference()
     requested = action(request_id="req-session-audience")
-    challenge = receiver.issue_challenge(requested, expected_agent_id=authority.agent_id)
+    challenge = receiver.issue_challenge(
+        requested, expected_agent_public_key=agent_key(authority)
+    )
     assert challenge.grant is not None
-    foreign = build_session_context(
-        SessionContextInputs(
-            verifier_id="other-receiver",
-            workspace_id="maritime-demo",
-            agent_id=authority.agent_id,
-            session_id="maritime-reference",
-            invocation_id=requested.request_id,
-            request_hash=operation_context_hash(
-                OperationContext(
-                    required_scope=WORK_ORDER_SCOPE,
-                    operation="work_order.create",
-                    resource_id=requested.resource,
-                    payload_digest=hashlib.sha256(requested.canonical_bytes()).digest(),
-                )
-            ),
-        )
+    # The same action bound for a different verifier key.
+    foreign = work_order_session_context(
+        requested, verifier_id="0" * 64, agent_id=authority.agent_id
     )
-    proof = authority.present(
-        challenge=challenge.grant.challenge,
-        session_context=foreign,
-        now=now,
-    )
+    proof = sign(authority, challenge.grant, session_context=foreign)
     result = receiver.execute(requested, proof)
     assert result["reason"] == "DENY_AUDIENCE_MISMATCH"
     assert result["handler_invocations"] == 0
@@ -424,11 +379,12 @@ def test_action_mutation_during_verification_cannot_change_handler_input(
     entered = threading.Event()
     release = threading.Event()
 
-    class BlockingRevocation:
-        def is_revoked(self, cert_id):
-            entered.set()
-            assert release.wait(timeout=2)
-            return False, None
+    real_status = receiver.status_feed
+
+    def blocking_status():
+        entered.set()
+        assert release.wait(timeout=2)
+        return real_status()
 
     captured = []
     real_handler = receiver._invoke_handler
@@ -437,7 +393,7 @@ def test_action_mutation_during_verification_cannot_change_handler_input(
         captured.append(snapshot)
         return real_handler(snapshot, verification_status, verification_ms)
 
-    receiver.revocation = BlockingRevocation()
+    receiver.status_feed = blocking_status
     monkeypatch.setattr(receiver, "_invoke_handler", capture)
     with ThreadPoolExecutor(max_workers=1) as pool:
         result_future = pool.submit(receiver.execute, requested, proof)
@@ -456,15 +412,11 @@ def test_foreign_caller_cannot_evict_or_use_pending_challenge():
     requested = action(request_id="req-caller-owned")
     challenge = receiver.issue_challenge(
         requested,
-        expected_agent_id=authority.agent_id,
+        expected_agent_public_key=agent_key(authority),
         caller_id="caller-victim",
     )
     assert challenge.grant is not None
-    proof = authority.present(
-        challenge=challenge.grant.challenge,
-        session_context=challenge.grant.session_context,
-        now=now,
-    )
+    proof = sign(authority, challenge.grant)
     hostile = receiver.execute(requested, proof, caller_id="caller-attacker")
     assert hostile["reason"] == "DENY_CALLER_MISMATCH"
     assert hostile["handler_invocations"] == 0
@@ -544,16 +496,73 @@ def test_second_agent_cannot_use_the_first_agents_subject():
     second = issue_authority(now=now - 1, resource=SECOND_RESOURCE)
     requested = action(request_id="req-cross-runtime")
     challenge = receiver.issue_challenge(
-        requested, expected_agent_id=second.agent_id
+        requested, expected_agent_public_key=agent_key(second)
     )
     assert challenge.grant is not None
-    borrowed = first.present(
-        challenge=challenge.grant.challenge,
-        session_context=challenge.grant.session_context,
-        now=now,
-    )
+    borrowed = sign(first, challenge.grant)
     result = receiver.execute(requested, borrowed)
     assert result["decision"] == "DENY"
     assert result["reason"] == "DENY_SUBJECT_MISMATCH"
     assert result["decided_by"] == "receiver_precheck"
     assert result["handler_invoked"] is False
+
+
+def test_status_key_must_be_separate_from_the_root_key():
+    """The root that issues delegations can never sign status for itself."""
+    root_public, _ = generate_keypair_v2()
+    with pytest.raises(Exception):
+        WorkOrderReceiver(
+            trusted_root_public_key=root_public,
+            status_public_key=root_public,
+            status_feed=lambda: b"",
+        )
+
+
+def test_status_signed_by_an_unpinned_key_never_allows():
+    now, authority, receiver = setup_reference()
+    receiver.status_feed = SignedStatus(authority.root_public_key, now).feed
+    requested = action(request_id="req-unpinned-status")
+    result = receiver.execute(requested, present(authority, receiver, requested, now))
+    assert result["decision"] == "DENY"
+    assert result["reason"] == "DENY_VERIFIER_UNAVAILABLE"
+    assert result["decided_by"] == "ratify_verification"
+    assert result["handler_invocations"] == 0
+
+
+def test_stale_signed_status_never_allows():
+    """A list past its one-day freshness bound is not current status."""
+    now = int(time.time())
+    authority = issue_authority(now=now - 1)
+    status = SignedStatus(authority.root_public_key, now - 2 * 86_400)
+    receiver = WorkOrderReceiver(
+        trusted_root_public_key=authority.root_public_key,
+        status_public_key=status.public_key,
+        status_feed=status.feed,
+        clock=lambda: now,
+    )
+    requested = action(request_id="req-stale-status")
+    result = receiver.execute(requested, present(authority, receiver, requested, now))
+    assert result["reason"] == "DENY_VERIFIER_UNAVAILABLE"
+    assert result["verification_status"] == "authorization_unverified"
+    assert result["handler_invocations"] == 0
+
+
+def test_every_decision_is_released_from_a_published_receipt():
+    """Allow and deny both pass through the receipt log and the checkpoint."""
+    now, authority, receiver = setup_reference()
+    allowed = action(request_id="req-receipt-allow")
+    denied = action(request_id="req-receipt-deny", amount_minor=65_000)
+    assert receiver.execute(
+        allowed, present(authority, receiver, allowed, now)
+    )["decision"] == "ALLOW"
+    assert receiver.execute(
+        denied, present(authority, receiver, denied, now)
+    )["decision"] == "DENY"
+    assert receiver.claim_store.log_length() == 2
+
+
+def test_verifier_id_is_the_receivers_64_hex_key_id():
+    _, _, receiver = setup_reference()
+    assert receiver.verifier_id == key_id_v2(receiver.verifier_public_key)
+    assert len(receiver.verifier_id) == 64
+    assert receiver.trusted_root_id == key_id_v2(receiver.trusted_root_public_key)
