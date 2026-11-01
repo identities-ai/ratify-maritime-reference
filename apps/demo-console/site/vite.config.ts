@@ -8,7 +8,8 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
 
 const { d1, r2 } = hostingConfig;
 
-// Sandboxes that block macOS FSEvents need polling for HMR; opt in with VITE_USE_POLLING=1.
+// Sandboxes that block macOS FSEvents need polling for HMR; opt in with
+// VITE_USE_POLLING=1.
 const usePolling = process.env.VITE_USE_POLLING === "1";
 
 const localBindingConfig = {

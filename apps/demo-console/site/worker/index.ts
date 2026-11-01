@@ -19,11 +19,10 @@ interface Env {
   };
 }
 
-const PROVIDER_HOST = "console-origin.example.com";
 const ROUTE_HEADER = "X-Ratify-Labs-Route";
 
 function allowedHosts(configured: string | undefined): Set<string> {
-  const hosts = (configured ?? PROVIDER_HOST)
+  const hosts = (configured ?? "")
     .split(",")
     .map((host) => host.trim().toLowerCase())
     .filter(Boolean);

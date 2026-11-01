@@ -83,11 +83,11 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.doesNotMatch(page, /\$750\.00/);
 });
 
-test("serves the provider hostname only through the Labs router", async () => {
+test("serves an allowed hostname only through the Labs router", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("host-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) }, LABS_ROUTER_TOKEN: "a".repeat(64) };
+  const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) }, LABS_ROUTER_TOKEN: "a".repeat(64), CONSOLE_ALLOWED_HOSTNAMES: "console-origin.example.com" };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
 
   const provider = await worker.fetch(

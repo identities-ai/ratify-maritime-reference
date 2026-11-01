@@ -198,8 +198,7 @@ review the technical and publication claims, and PUB-002..004.
 - Production dependency audit: 0 vulnerabilities
 - Public URL: `https://labs.ratifyprotocol.com/maritime`
 - Hosting version: 4; served through the secret-bound Ratify Labs route
-- The provider hostname
-  `https://console-origin.example.com` returns HTTP 404 from
+- The former Sites provider hostname returns HTTP 404 from
   the application boundary; localhost remains available for development
 - The denied scenario displays the executed `$501.00 USD` request beside the
   signed `$500.00 USD` bound and marks the protected handler as not entered
