@@ -54,9 +54,9 @@ CHECKS = [
         "Local reproduction from images built from this checkout",
         ["python3", "scripts/reproduce_gate_locally.py"],
         REPOSITORY,
-        # RATIFY_V2_PIN: reproduce from published reviewed v2 digests once
-        # they exist, as the v1 gate did.
-        detail="requires Docker and vendor/ratify-protocol; builds both images",
+        # Reproduce from published reviewed v2 digests once they exist, as
+        # the v1 gate did.
+        detail="requires Docker; builds both images",
     ),
 ]
 
@@ -257,15 +257,31 @@ def _v2_record_problems() -> list[str]:
             for field in observed[item]
         ):
             problems.append(f"the Protocol v2 record does not match {name}")
-    vendored = REPOSITORY / "vendor" / "ratify-protocol" / "REVISION"
-    if vendored.is_file() and record.get("ratify_protocol_revision") != (
-        vendored.read_text(encoding="utf-8").strip()
+    locked = _locked_sdk_versions()
+    packages = record.get("ratify_protocol_packages") or {}
+    if set(packages) != {"agent", "receiver"} or any(
+        packages[image] != locked for image in packages
     ):
         problems.append(
-            "the Protocol v2 record was made against a different vendored "
-            "ratify-protocol revision"
+            "the Protocol v2 record was made against Ratify packages other "
+            f"than the ones uv.lock pins ({locked})"
         )
     return problems
+
+
+def _locked_sdk_versions() -> dict[str, str]:
+    """The Ratify distribution versions uv.lock pins, which the images install."""
+    names = ("ratify-protocol", "ratify-protocol-native-v2")
+    lock = (REPOSITORY / "uv.lock").read_text(encoding="utf-8")
+    versions = {}
+    for block in lock.split("\n[[package]]\n"):
+        lines = dict(
+            line.split(" = ", 1) for line in block.splitlines()[:3] if " = " in line
+        )
+        name = lines.get("name", "").strip('"')
+        if name in names:
+            versions[name] = lines.get("version", "").strip('"')
+    return versions
 
 
 def main() -> int:

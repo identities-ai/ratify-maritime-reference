@@ -2,8 +2,8 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 
 import pytest
-from ratify_protocol_v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2 as MAX_PROOF_BUNDLE_BYTES
-from ratify_protocol_v2.protocol_v2 import encode_proof_bundle_v2
+from ratify_protocol.v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2 as MAX_PROOF_BUNDLE_BYTES
+from ratify_protocol.v2.protocol_v2 import encode_proof_bundle_v2
 
 from maritime_ratify import (
     CallerAuthenticator,

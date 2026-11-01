@@ -5,7 +5,7 @@ import time
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from ratify_protocol_v2.protocol_v2 import encode_proof_bundle_v2
+from ratify_protocol.v2.protocol_v2 import encode_proof_bundle_v2
 
 from maritime_ratify import (
     CallerAuthenticator,

@@ -9,9 +9,9 @@ import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 
-from ratify_protocol_v2 import V2Error
-from ratify_protocol_v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2
-from ratify_protocol_v2.protocol_v2 import ProofBundleV2, decode_proof_bundle_v2
+from ratify_protocol.v2 import V2Error
+from ratify_protocol.v2.limits_v2 import MAX_PROOF_BUNDLE_BYTES_V2
+from ratify_protocol.v2.protocol_v2 import ProofBundleV2, decode_proof_bundle_v2
 
 from .action import WorkOrder
 

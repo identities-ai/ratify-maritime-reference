@@ -6,7 +6,7 @@ checkpoint acknowledgement, and release. The handler runs only for a released
 decision whose ``allowed()`` is true at the receiver's own clock.
 
 Part B stores. This reference uses the SDK's in-memory reference stores
-(``ratify_protocol_v2.v2reference``) for the claim store, receipt log,
+(``ratify_protocol.v2.v2reference``) for the claim store, receipt log,
 checkpoint, challenge issuance store and security journal. They are not
 durable, do not survive a restart, and the checkpoint shares this process, so
 it is not an independent failure domain. That is sufficient for a
@@ -26,7 +26,7 @@ import time
 from typing import Any
 import uuid
 
-from ratify_protocol_v2 import (
+from ratify_protocol.v2 import (
     HybridPrivateKey,
     HybridPublicKey,
     V2Error,
@@ -40,47 +40,47 @@ from ratify_protocol_v2 import (
     session_context_v2_hash,
     verify_proof_bundle_v2,
 )
-from ratify_protocol_v2.challenge_issuance_v2 import (
+from ratify_protocol.v2.challenge_issuance_v2 import (
     V2ChallengeIssueRequest,
     V2ChallengeIssuer,
     load_expected_challenge_v2,
 )
-from ratify_protocol_v2.constraint_evaluator_v2 import (
+from ratify_protocol.v2.constraint_evaluator_v2 import (
     new_constraint_evaluator_registry_v2,
     standard_allowed_values_evaluator_v2,
 )
-from ratify_protocol_v2.constraints_v2 import (
+from ratify_protocol.v2.constraints_v2 import (
     CONSTRAINT_MAX_AMOUNT,
     CONSTRAINT_RESOURCE_PATH,
     TZDB_VERSION_V2,
     ConstraintContextV2,
 )
-from ratify_protocol_v2.context_policy_v2 import new_v2_context_policy
-from ratify_protocol_v2.protocol_v2 import (
+from ratify_protocol.v2.context_policy_v2 import new_v2_context_policy
+from ratify_protocol.v2.protocol_v2 import (
     DelegationCertV2,
     ProofBundleV2,
     encode_proof_bundle_v2,
 )
-from ratify_protocol_v2.release_v2 import (
+from ratify_protocol.v2.release_v2 import (
     V2_RELEASE_RELEASED,
     V2ReleaseConfig,
     release_v2_decision,
 )
-from ratify_protocol_v2.security_journal_v2 import (
+from ratify_protocol.v2.security_journal_v2 import (
     configure_status_key_epoch_v2,
     record_security_key_role_v2,
 )
-from ratify_protocol_v2.signing_v2 import public_key_of
-from ratify_protocol_v2.status_batch_v2 import (
+from ratify_protocol.v2.signing_v2 import public_key_of
+from ratify_protocol.v2.status_batch_v2 import (
     V2StatusEvidenceBatch,
     V2StatusEvidenceObject,
 )
-from ratify_protocol_v2.status_provenance_v2 import V2StatusKeyConfig
-from ratify_protocol_v2.status_state_v2 import RevocationStatusPolicyV2
-from ratify_protocol_v2.v2reference.challenges import TestOnlyChallengeIssuanceStore
-from ratify_protocol_v2.v2reference.journal import new_journal_store
-from ratify_protocol_v2.v2reference.store import Store
-from ratify_protocol_v2.verify_v2 import V2_STAGE_COMMITTED, V2_STAGE_REPLAY
+from ratify_protocol.v2.status_provenance_v2 import V2StatusKeyConfig
+from ratify_protocol.v2.status_state_v2 import RevocationStatusPolicyV2
+from ratify_protocol.v2.v2reference.challenges import TestOnlyChallengeIssuanceStore
+from ratify_protocol.v2.v2reference.journal import new_journal_store
+from ratify_protocol.v2.v2reference.store import Store
+from ratify_protocol.v2.verify_v2 import V2_STAGE_COMMITTED, V2_STAGE_REPLAY
 
 from .action import WorkOrder
 from .profile import (
@@ -398,6 +398,7 @@ class WorkOrderReceiver:
             required_scope=WORK_ORDER_SCOPE,
             verifier_namespace=VERIFIER_NAMESPACE,
             replay_epoch=REPLAY_EPOCH,
+            verifier_id=self.verifier_id,
             now=store.now(),
             max_challenge_age_seconds=CHALLENGE_LIFETIME_SECONDS,
             future_skew_seconds=_FUTURE_SKEW_SECONDS,

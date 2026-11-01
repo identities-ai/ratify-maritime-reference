@@ -6,24 +6,24 @@ from dataclasses import dataclass, field
 import time
 import uuid
 
-from ratify_protocol_v2 import (
+from ratify_protocol.v2 import (
     HybridPrivateKey,
     HybridPublicKey,
     generate_keypair_v2,
     key_id_v2,
 )
-from ratify_protocol_v2 import background
-from ratify_protocol_v2.signing_v2 import (
+from ratify_protocol.v2 import background
+from ratify_protocol.v2.signing_v2 import (
     _new_local_signer_v2,
     _sign_v2_statement_with_signer,
     public_key_of,
 )
-from ratify_protocol_v2.constraints_v2 import (
+from ratify_protocol.v2.constraints_v2 import (
     CONSTRAINT_MAX_AMOUNT,
     CONSTRAINT_RESOURCE_PATH,
     ConstraintV2,
 )
-from ratify_protocol_v2.protocol_v2 import (
+from ratify_protocol.v2.protocol_v2 import (
     CHALLENGE_PRESENTATION,
     DelegationCertV2,
     ProofBundleV2,

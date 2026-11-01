@@ -5,9 +5,9 @@ import threading
 import time
 
 import pytest
-from ratify_protocol_v2 import generate_keypair_v2, key_id_v2
-from ratify_protocol_v2.constraints_v2 import CONSTRAINT_MAX_AMOUNT
-from ratify_protocol_v2.v2reference.store import Store
+from ratify_protocol.v2 import generate_keypair_v2, key_id_v2
+from ratify_protocol.v2.constraints_v2 import CONSTRAINT_MAX_AMOUNT
+from ratify_protocol.v2.v2reference.store import Store
 
 from maritime_ratify import WorkOrder, WorkOrderReceiver, issue_authority
 from maritime_ratify.authority import (
@@ -570,8 +570,8 @@ def test_verifier_id_is_the_receivers_64_hex_key_id():
 
 def test_profile_constraint_names_are_the_sdk_registered_names():
     """The profile spells these out so scripts can read it without the SDK."""
-    from ratify_protocol_v2.constraint_evaluator_v2 import CONSTRAINT_ALLOWED_VALUES_V2
-    from ratify_protocol_v2.constraints_v2 import CONSTRAINT_RECEIVER_AUDIENCE
+    from ratify_protocol.v2.constraint_evaluator_v2 import CONSTRAINT_ALLOWED_VALUES_V2
+    from ratify_protocol.v2.constraints_v2 import CONSTRAINT_RECEIVER_AUDIENCE
 
     from maritime_ratify import profile
 

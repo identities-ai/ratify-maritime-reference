@@ -158,6 +158,7 @@ def test_acceptance_gate_rejects_a_v2_record_that_predates_its_contract(
         "evidence/protocol-v2-local-reproduction.json",
         "docs/gate-expectations.json",
         "docs/runtime-isolation-expectations.json",
+        "uv.lock",
     ):
         (copy / relative).parent.mkdir(parents=True, exist_ok=True)
         (copy / relative).write_text((repository / relative).read_text())
@@ -170,6 +171,39 @@ def test_acceptance_gate_rejects_a_v2_record_that_predates_its_contract(
     status, detail = gate._evidence_is_current()
     assert status == "FAIL"
     assert "does not match gate-expectations.json" in detail
+
+
+def test_acceptance_gate_rejects_a_v2_record_from_other_sdk_packages(
+    monkeypatch, tmp_path
+):
+    """The record must have run the Ratify packages this checkout locks.
+
+    A record made against an earlier SDK build says nothing about the
+    published packages the images now install.
+    """
+    gate = _load("run_acceptance_gate")
+    repository = SCRIPTS.parent
+    copy = tmp_path / "repo"
+    for relative in (
+        "evidence/adversarial-results.json",
+        "evidence/runtime-isolation-results.json",
+        "evidence/protocol-v2-local-reproduction.json",
+        "docs/gate-expectations.json",
+        "docs/runtime-isolation-expectations.json",
+        "uv.lock",
+    ):
+        (copy / relative).parent.mkdir(parents=True, exist_ok=True)
+        (copy / relative).write_text((repository / relative).read_text())
+    monkeypatch.setattr(gate, "REPOSITORY", copy)
+    assert gate._evidence_is_current()[0] == "pass"
+
+    path = copy / "evidence/protocol-v2-local-reproduction.json"
+    record = json.loads(path.read_text())
+    record["ratify_protocol_packages"]["receiver"]["ratify-protocol"] = "2.0.0a1"
+    path.write_text(json.dumps(record))
+    status, detail = gate._evidence_is_current()
+    assert status == "FAIL"
+    assert "other than the ones uv.lock pins" in detail
 
 
 def test_live_gates_refuse_while_the_deployment_is_protocol_v1(monkeypatch):

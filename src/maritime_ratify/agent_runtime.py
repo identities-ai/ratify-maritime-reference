@@ -20,13 +20,13 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from ratify_protocol_v2 import HybridPrivateKey, V2Error
-from ratify_protocol_v2.constraints_v2 import (
+from ratify_protocol.v2 import HybridPrivateKey, V2Error
+from ratify_protocol.v2.constraints_v2 import (
     CONSTRAINT_MAX_AMOUNT,
     CONSTRAINT_RESOURCE_PATH,
 )
-from ratify_protocol_v2.protocol_v2 import decode_delegation_cert_v2
-from ratify_protocol_v2.signing_v2 import public_key_of
+from ratify_protocol.v2.protocol_v2 import decode_delegation_cert_v2
+from ratify_protocol.v2.signing_v2 import public_key_of
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse

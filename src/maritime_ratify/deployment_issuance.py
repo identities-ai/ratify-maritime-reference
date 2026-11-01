@@ -10,19 +10,19 @@ from pathlib import Path
 import secrets
 import time
 
-from ratify_protocol_v2 import (
+from ratify_protocol.v2 import (
     HybridPrivateKey,
     HybridPublicKey,
     V2Error,
     generate_keypair_v2,
     key_id_v2,
 )
-from ratify_protocol_v2.protocol_v2 import (
+from ratify_protocol.v2.protocol_v2 import (
     decode_revocation_list_v2,
     encode_delegation_cert_v2,
     verify_delegation_cert_v2_signature,
 )
-from ratify_protocol_v2.signing_v2 import public_key_of
+from ratify_protocol.v2.signing_v2 import public_key_of
 
 from .authority import issue_bounded_delegation
 from .profile import (

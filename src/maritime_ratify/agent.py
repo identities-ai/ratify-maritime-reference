@@ -12,7 +12,7 @@ import httpx
 from langchain.agents import create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.interceptors import MCPToolCallRequest
-from ratify_protocol_v2.protocol_v2 import encode_proof_bundle_v2
+from ratify_protocol.v2.protocol_v2 import encode_proof_bundle_v2
 
 from .action import WorkOrder
 from .authority import AuthorityFixture

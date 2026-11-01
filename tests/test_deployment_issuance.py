@@ -5,12 +5,12 @@ import stat
 from pathlib import Path
 
 import pytest
-from ratify_protocol_v2 import HybridPublicKey, generate_keypair_v2, key_id_v2
-from ratify_protocol_v2.constraints_v2 import (
+from ratify_protocol.v2 import HybridPublicKey, generate_keypair_v2, key_id_v2
+from ratify_protocol.v2.constraints_v2 import (
     CONSTRAINT_MAX_AMOUNT,
     CONSTRAINT_RESOURCE_PATH,
 )
-from ratify_protocol_v2.protocol_v2 import (
+from ratify_protocol.v2.protocol_v2 import (
     decode_delegation_cert_v2,
     decode_revocation_list_v2,
     verify_delegation_cert_v2_signature,

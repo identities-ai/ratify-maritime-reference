@@ -676,6 +676,30 @@ wheels = [
 ]
 
 [[package]]
+name = "pqcrypto"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/2b/3cfe832c7c365cf715d04a1cc220961ce442deb88888f259890fb6af175a/pqcrypto-0.4.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:001d2b473bd64c1ff59ed3ef57ad5b4d351a2b75b589015a8385a6e29d44cb55", size = 11005504, upload-time = "2026-01-25T20:59:24.369Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/c9/13f965ada9bbccb9633cb13123327022dfd537e12d10ad033bd83053dab3/pqcrypto-0.4.0-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2e79f8d9148db5a83e8a842ad59402f3421a2cc678f2c3c43015b26f4b5cad93", size = 24322618, upload-time = "2026-01-25T20:59:27.203Z" },
+    { url = "https://files.pythonhosted.org/packages/02/f4/80b7aacc93249d5735f8d150096f0b6eed8347cff99e0f032e3170c94aaf/pqcrypto-0.4.0-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:280db9aa8e173b6756bf45a7eda042f02692c32e06ed47c57d6909026be17d48", size = 27288989, upload-time = "2026-01-25T20:59:30.143Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/63/3f941d65571f4faa9dfa3ba0c672a72a8d783c1ac3dbfea041e3844eb9a2/pqcrypto-0.4.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:61d5cad03791a892d9d1896fd268604a9912df1760e7fe70efe53fef7a3e31a4", size = 24019376, upload-time = "2026-01-25T20:59:33.051Z" },
+    { url = "https://files.pythonhosted.org/packages/12/e4/6f4a22da1e74eb925a5f08887c450af474abd6bc4d6898384a1fce554fa2/pqcrypto-0.4.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:7a6515e74bf05bbefc8e1a33a18c0c2e0494185675b6f8aaa8c931191272b565", size = 27235541, upload-time = "2026-01-25T20:59:35.561Z" },
+    { url = "https://files.pythonhosted.org/packages/49/2c/333b2e41f863a3a6453192a18c1e437b471b02351154972e2add6d42f903/pqcrypto-0.4.0-cp312-cp312-win32.whl", hash = "sha256:ab62730b19e1d810bd8adbac783b5e7b2a21db03da39e05e7e175242ff556189", size = 6211191, upload-time = "2026-01-25T20:59:37.755Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/b9/3425250bfad6e1bff4f855555c8d043a918d8b5619dc316ce0b6ad58ad54/pqcrypto-0.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:8a5b74ddc4e257469b3ad44aa65e839eeb7da5c0fabc68a8e469507445e731cd", size = 7123468, upload-time = "2026-01-25T20:59:39.367Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/5d/dd3752d741f8772eb7f0a49226bb02966c1fd7b85c7aa83027213a2e9973/pqcrypto-0.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:ede8f0adfb30df35f0fedfab3277792792f5fae5eb66c4b4b3d7a7bd89a64778", size = 13065315, upload-time = "2026-01-25T20:59:41.564Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/d6/98abb4e44df8c361a1a0f67e0306e6f0257c3ca8aef6bedefc0956047949/pqcrypto-0.4.0-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:239cc1b60cdf54f45e7f13c45caab784500ce8e4e7f9fde8657b9fadeb125008", size = 30396217, upload-time = "2026-01-25T20:59:44.086Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/01/9c57f061b6798bc478cb552d3653bff4f447b34f989e0f49326fa558719e/pqcrypto-0.4.0-cp313-cp313-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1ee2954eca84149e29064b9f82f130bd1ac5e0d963b0a35e48a7c9737c2e394e", size = 34105773, upload-time = "2026-01-25T20:59:47.453Z" },
+    { url = "https://files.pythonhosted.org/packages/38/29/b63e8b9489bb8f7a41a63121cc442e9a6909a2ea761b921a75488e90f6df/pqcrypto-0.4.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:68a7ce6889450732154405cc71a30233e16d47ba4588529ea365d46655c35889", size = 30017344, upload-time = "2026-01-25T20:59:50.287Z" },
+    { url = "https://files.pythonhosted.org/packages/86/35/18b6949229c3157d54feeee2a7dfe29d1e327a04b39b0b9fa3feb2f58e04/pqcrypto-0.4.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:7f2de5cedff213cc874341c6618e5d70f050f444ee0793a3a3adec0f81d86f20", size = 34041682, upload-time = "2026-01-25T20:59:52.856Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/19/76610175111e2e4298fd1e5fd48ef6eebbb5b54a8c685af3a7d4b3e90691/pqcrypto-0.4.0-cp313-cp313-win32.whl", hash = "sha256:af474a7530daec502642964a4a9ed0ac110ecb1abd7b6cb010ffee3405721cb5", size = 7983085, upload-time = "2026-01-25T20:59:55.236Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/39/c22a01f0ae8b4e843d9aaf6095ad5a3708230f50fca523fd8c70081cd62b/pqcrypto-0.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:04fce6e234727a96e94a7e7b05e8959edf7db39fa94b092f6bab5fe51ecdf29e", size = 8895365, upload-time = "2026-01-25T20:59:56.842Z" },
+]
+
+[[package]]
 name = "pycparser"
 version = "3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -866,8 +890,7 @@ dependencies = [
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "mcp" },
-    { name = "ratify-protocol-native-v2" },
-    { name = "ratify-protocol-v2" },
+    { name = "ratify-protocol", extra = ["protocol-v2"] },
     { name = "starlette" },
     { name = "uvicorn" },
 ]
@@ -884,8 +907,7 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.3,<1" },
     { name = "langchain-openai", specifier = ">=1,<2" },
     { name = "mcp", specifier = ">=1.28,<2" },
-    { name = "ratify-protocol-native-v2", directory = "vendor/ratify-protocol/sdks/python-native-v2" },
-    { name = "ratify-protocol-v2", directory = "vendor/ratify-protocol/sdks/python-v2" },
+    { name = "ratify-protocol", extras = ["protocol-v2"], specifier = "==2.0.0b1" },
     { name = "starlette", specifier = ">=1.3.1,<2" },
     { name = "uvicorn", specifier = ">=0.35,<1" },
 ]
@@ -894,28 +916,37 @@ requires-dist = [
 dev = [{ name = "pytest", specifier = "==9.0.3" }]
 
 [[package]]
-name = "ratify-protocol-native-v2"
-source = { directory = "vendor/ratify-protocol/sdks/python-native-v2" }
-
-[[package]]
-name = "ratify-protocol-v2"
-version = "2.0.0a1"
-source = { directory = "vendor/ratify-protocol/sdks/python-v2" }
+name = "ratify-protocol"
+version = "2.0.0b1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
+    { name = "pqcrypto" },
+    { name = "tzdata" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/96/58/5ac4b224d60a78fe35b4b517ce2468582524a82a3a7f8d9d5d9c4c0c215d/ratify_protocol-2.0.0b1.tar.gz", hash = "sha256:91e8ecbf48c6191425d2d32e97b47bda484d233013ef196f522ebc85e48f1c0f", size = 378723, upload-time = "2026-10-31T05:33:30.308Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/57/e23b7ab5e7646e03c0971207b9c6c2de13ed4fe0f759ad690e81204df217/ratify_protocol-2.0.0b1-py3-none-any.whl", hash = "sha256:251747862aa51c066d47bdba65ca24649143cedf33e5206172f7934554d582d9", size = 268094, upload-time = "2026-10-31T05:33:28.725Z" },
+]
+
+[package.optional-dependencies]
+protocol-v2 = [
     { name = "ratify-protocol-native-v2" },
     { name = "tzdata" },
 ]
 
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=44.0" },
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "ratify-protocol-native-v2", specifier = "==2.0.0a1" },
-    { name = "tzdata", specifier = "==2025.3" },
+[[package]]
+name = "ratify-protocol-native-v2"
+version = "2.0.0b1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/8b/c30582b81004b42e266bcf34f300c7446286bf675155bb3cccbaf474d2ef/ratify_protocol_native_v2-2.0.0b1.tar.gz", hash = "sha256:51e97de0296695f6c19cc50674dcd9aecec6e0c7fafae0309f75ba74dc734453", size = 514912, upload-time = "2026-10-31T05:33:01.612Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/b3/c93a13f57ad9c09303d6c8cbdfd38418a4a458b591ba82b187127f662c94/ratify_protocol_native_v2-2.0.0b1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d692efdebca6548c50d8baf91bf912f959194a1173aaf4cd092963c27d7f456a", size = 419421, upload-time = "2026-10-31T05:32:54.293Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/b4/44d79a0bb1e7dfb0b7e62ceae3b8a656fee27d2c272e0056f4e18c401e33/ratify_protocol_native_v2-2.0.0b1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:9e6d5a6d5a23a8d2b1782b8265ee94ceff82ae62fec1b961d3e211561c78ab1e", size = 428344, upload-time = "2026-10-31T05:32:56.057Z" },
+    { url = "https://files.pythonhosted.org/packages/16/5b/194abc3383df622129a4adce11fce33fa07ca53f90271d62bb4ced95f329/ratify_protocol_native_v2-2.0.0b1-cp310-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:75c04ceaf0ada93229f6bdbed1201a271957329e6e107d193cfa35c560accbfb", size = 479038, upload-time = "2026-10-31T05:32:57.449Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/6c/ff11b72e39c7ec92d27bc1cdc35657fa1453343000934e85ba599d0fb4fe/ratify_protocol_native_v2-2.0.0b1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:41a782b72f17d131c5f513971fe98862e48a7593a682f7b1fcdd59047524be4c", size = 527676, upload-time = "2026-10-31T05:32:58.927Z" },
+    { url = "https://files.pythonhosted.org/packages/88/b9/f617ec8e514c7fb2ebae68ecd4a82aaa5a1aab2ed492a3ac9117c55817f7/ratify_protocol_native_v2-2.0.0b1-cp310-abi3-win_amd64.whl", hash = "sha256:d19ab78d593c3517972866ab45b90557933b918e4487cd5f06938e11661d4b5f", size = 310018, upload-time = "2026-10-31T05:33:00.393Z" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "referencing"

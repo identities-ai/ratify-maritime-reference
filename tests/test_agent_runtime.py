@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 import pytest
-from ratify_protocol_v2.protocol_v2 import encode_delegation_cert_v2
+from ratify_protocol.v2.protocol_v2 import encode_delegation_cert_v2
 import uvicorn
 from starlette.testclient import TestClient
 

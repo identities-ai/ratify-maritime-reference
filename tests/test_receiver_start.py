@@ -3,7 +3,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
-from ratify_protocol_v2 import generate_keypair_v2, key_id_v2
+from ratify_protocol.v2 import generate_keypair_v2, key_id_v2
 
 AGENT_A, _ = generate_keypair_v2()
 AGENT_B, _ = generate_keypair_v2()

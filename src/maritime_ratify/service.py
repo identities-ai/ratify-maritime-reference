@@ -12,7 +12,7 @@ from typing import Any
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.fastmcp.server import Settings as FastMCPSettings
 from mcp.server.transport_security import TransportSecuritySettings
-from ratify_protocol_v2 import HybridPublicKey
+from ratify_protocol.v2 import HybridPublicKey
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse

@@ -7,7 +7,7 @@ import importlib.util
 from pathlib import Path
 import time
 
-from ratify_protocol_v2 import HybridPublicKey, generate_keypair_v2
+from ratify_protocol.v2 import HybridPublicKey, generate_keypair_v2
 
 from maritime_ratify import WorkOrderReceiver
 from maritime_ratify.status import MemoryStatusFeed, StatusAuthority

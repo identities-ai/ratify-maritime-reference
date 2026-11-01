@@ -13,6 +13,3 @@ coverage/
 
 # Acceptance gate scratch results, never the published evidence
 .acceptance/
-
-# Protocol v2 source exported by scripts/vendor_ratify_v2.sh (RATIFY_V2_PIN)
-vendor/

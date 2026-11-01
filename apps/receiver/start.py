@@ -4,7 +4,7 @@ import base64
 import os
 
 import uvicorn
-from ratify_protocol_v2 import HybridPrivateKey, HybridPublicKey, key_id_v2
+from ratify_protocol.v2 import HybridPrivateKey, HybridPublicKey, key_id_v2
 
 from maritime_ratify import CallerAuthenticator, PresentationRegistry, WorkOrderReceiver
 from maritime_ratify.service import create_receiver_app

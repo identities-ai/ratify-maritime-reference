@@ -22,8 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
-from ratify_protocol_v2 import V2Error
-from ratify_protocol_v2.protocol_v2 import decode_delegation_cert_v2
+from ratify_protocol.v2 import V2Error
+from ratify_protocol.v2.protocol_v2 import decode_delegation_cert_v2
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 EXPECTATIONS = REPOSITORY / "docs" / "runtime-isolation-expectations.json"

@@ -10,11 +10,11 @@ same image and reproduces the cross-runtime attempts in
 `docs/runtime-isolation-expectations.json`.
 
 Protocol v2. No reviewed Protocol v2 image is published yet, so by default
-this builds both images from this checkout (which needs the protocol source
-exported by `scripts/vendor_ratify_v2.sh`) and runs those. `--agent-image` and
-`--receiver-image` run existing images instead. The published image digests
-recorded in `evidence/` are the Protocol v1 deployment of 2026-09 and cannot
-satisfy the v2 contracts.
+this builds both images from this checkout, which install the published
+`ratify-protocol[protocol-v2]==2.0.0b1` from `uv.lock`, and runs those.
+`--agent-image` and `--receiver-image` run existing images instead. The
+published image digests recorded in `evidence/` are the Protocol v1
+deployment of 2026-09 and cannot satisfy the v2 contracts.
 
 Requirements are Docker and Python 3.10 or newer. There is no Ratify
 credential and no call to the live deployment.
@@ -56,12 +56,12 @@ ISOLATION_EXPECTATIONS = (
     REPOSITORY / "docs" / "runtime-isolation-expectations.json"
 )
 
-# RATIFY_V2_PIN: once reviewed Protocol v2 images are published, default to
-# their digests again (as the v1 reproduction did) and keep the local build
-# behind a flag.
+# Once reviewed Protocol v2 images are published, default to their digests
+# again (as the v1 reproduction did) and keep the local build behind a flag.
 LOCAL_AGENT_IMAGE = "ratify-maritime-agent:v2-local"
 LOCAL_RECEIVER_IMAGE = "ratify-maritime-receiver:v2-local"
-PROTOCOL_REVISION = REPOSITORY / "vendor" / "ratify-protocol" / "REVISION"
+# The Ratify distributions each image must carry, read back from the image.
+SDK_DISTRIBUTIONS = ("ratify-protocol", "ratify-protocol-native-v2")
 RECEIVER_ALIAS = "receiver"
 CONTAINER_PORT = "8080"
 COMPARED = ("decision", "reason", "handler_invoked", "decided_by", "verification_status")
@@ -197,11 +197,6 @@ def _start_receiver(
 
 def _build(platform: str) -> tuple[str, str]:
     """Build both images from this checkout, tagged for local use only."""
-    if not PROTOCOL_REVISION.is_file():
-        raise RuntimeError(
-            "vendor/ratify-protocol is missing. Run "
-            "scripts/vendor_ratify_v2.sh /path/to/ratify-protocol first."
-        )
     for image, dockerfile in (
         (LOCAL_AGENT_IMAGE, "Dockerfile"),
         (LOCAL_RECEIVER_IMAGE, "apps/receiver/Dockerfile"),
@@ -508,11 +503,24 @@ def main() -> int:
     return 0
 
 
-def _write_record(arguments, build: bool, observed: dict, passed: bool) -> None:
-    revision = (
-        PROTOCOL_REVISION.read_text(encoding="utf-8").strip()
-        if PROTOCOL_REVISION.is_file() else None
+def _image_sdk_versions(image: str, platform: str) -> dict[str, str] | None:
+    """The Ratify distributions installed in an image, as the image reports them."""
+    script = (
+        "import importlib.metadata as m, json; "
+        f"print(json.dumps({{d: m.version(d) for d in {SDK_DISTRIBUTIONS!r}}}))"
     )
+    completed = subprocess.run(
+        ["docker", "run", "--rm", "--platform", platform, "--entrypoint",
+         "/app/.venv/bin/python", image, "-c", script],
+        capture_output=True, text=True,
+    )
+    try:
+        return json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def _write_record(arguments, build: bool, observed: dict, passed: bool) -> None:
     record = {
         "schema": "ratify-maritime-local-reproduction/v1",
         "protocol_line": "v2",
@@ -529,7 +537,12 @@ def _write_record(arguments, build: bool, observed: dict, passed: bool) -> None:
             "receiver_image_id": _image_id(arguments.receiver_image),
         },
         "reference_source_revision": _source_revision(),
-        "ratify_protocol_revision": revision,
+        "ratify_protocol_packages": {
+            "agent": _image_sdk_versions(arguments.agent_image, arguments.platform),
+            "receiver": _image_sdk_versions(
+                arguments.receiver_image, arguments.platform
+            ),
+        },
         "results": observed,
         "limits": (
             "Local containers on one machine with fresh issuance. Not a "
