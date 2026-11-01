@@ -1,0 +1,20 @@
+name: Public content
+
+# Everything in this repository is public. See the docstring of
+# scripts/check-public-content.py for what this check refuses.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Public content
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Public content
+        run: python3 scripts/check-public-content.py

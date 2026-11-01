@@ -337,7 +337,7 @@ The console source MUST live at `apps/demo-console/` in this repository. The
 site is deployed through Sites behind the secret-bound Ratify Labs router at
 `labs.ratifyprotocol.com/maritime`; a separate Cloudflare Worker exposes only
 the enumerated, origin-bound scenario API. This is separate code and deployment
-from `ratify-web`.
+from the managed service's web application.
 
 The agent MUST live at `apps/agent/` and deploy to one Maritime isolated
 runtime. The receiver MUST live at `apps/receiver/` and deploy to a second

@@ -50,7 +50,7 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.match(html, /href="https:\/\/maritime\.sh\/"/);
   assert.match(html, /href="https:\/\/ratifyprotocol\.com\/"/);
   assert.match(html, /Open-source pilot implementation/);
-  assert.doesNotMatch(html, /Your site is taking shape|Building your site|codex-preview/);
+  assert.doesNotMatch(html, /Your site is taking shape|Building your site/);
   assert.match(html, /src="\/maritime\/ratify-logo\.png"/);
   assert.doesNotMatch(html, /src="\/ratify-logo\.png"/);
   assert.match(html, /RATIFY[\s\S]*LABS/);
@@ -83,26 +83,26 @@ test("server-renders the authorization lab without starter copy", async () => {
   assert.doesNotMatch(page, /\$750\.00/);
 });
 
-test("serves the provider hostname only through the Labs router", async () => {
+test("serves an allowed hostname only through the Labs router", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("host-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) }, LABS_ROUTER_TOKEN: "a".repeat(64) };
+  const env = { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) }, LABS_ROUTER_TOKEN: "a".repeat(64), CONSOLE_ALLOWED_HOSTNAMES: "console-origin.example.com" };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
 
   const provider = await worker.fetch(
-    new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime"), env, ctx,
+    new Request("https://console-origin.example.com/maritime"), env, ctx,
   );
   assert.equal(provider.status, 404);
   assert.equal(provider.headers.get("cache-control"), "no-store");
 
   const wrong = await worker.fetch(
-    new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime", { headers: { "X-Ratify-Labs-Route": "Bearer wrong" } }), env, ctx,
+    new Request("https://console-origin.example.com/maritime", { headers: { "X-Ratify-Labs-Route": "Bearer wrong" } }), env, ctx,
   );
   assert.equal(wrong.status, 404);
 
   const routed = await worker.fetch(
-    new Request("https://ratify-maritime-lab.chuksy0x01.chatgpt.site/maritime", { headers: { "X-Ratify-Labs-Route": `Bearer ${"a".repeat(64)}` } }), env, ctx,
+    new Request("https://console-origin.example.com/maritime", { headers: { "X-Ratify-Labs-Route": `Bearer ${"a".repeat(64)}` } }), env, ctx,
   );
   assert.equal(routed.status, 200);
 

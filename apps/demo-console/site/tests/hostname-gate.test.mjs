@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const PROVIDER_HOST = "ratify-maritime-lab.chuksy0x01.chatgpt.site";
+const PROVIDER_HOST = "console-origin.example.com";
 const STAGING_HOST = "ratify-maritime-demo-console-staging.chuks-04d.workers.dev";
 const TOKEN = "a".repeat(64);
 
@@ -32,9 +32,9 @@ async function request({ host, allowed, token = TOKEN, label = "gate" }) {
   return worker.fetch(new Request(`https://${host}/maritime`, { headers }), env, ctx);
 }
 
-test("without the variable, the existing provider hostname still routes", async () => {
-  const response = await request({ host: PROVIDER_HOST, allowed: undefined, label: "default-allow" });
-  assert.equal(response.status, 200);
+test("without the variable, no hostname routes", async () => {
+  const response = await request({ host: PROVIDER_HOST, allowed: undefined, label: "default-closed" });
+  assert.equal(response.status, 404);
 });
 
 test("without the variable, a missing credential is still refused", async () => {
