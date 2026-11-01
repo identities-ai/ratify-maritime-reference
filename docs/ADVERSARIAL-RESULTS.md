@@ -35,7 +35,7 @@ status is the v2 error class rather than a receipt identity status. The
 published `evidence/adversarial-results.json` is the Protocol v1 deployment of
 2026-09, where the same case recorded `invalid`; it is kept unchanged as dated
 history. The Protocol v2 results are in
-[`../evidence/protocol-v2-2026-10-22.md`](../evidence/protocol-v2-2026-10-22.md).
+[`../evidence/protocol-v2-2026-11-01.md`](../evidence/protocol-v2-2026-11-01.md).
 
 The remaining three demonstrate receiver-owned binding rather than the
 protocol. The altered-operation and replay cases are stopped by the

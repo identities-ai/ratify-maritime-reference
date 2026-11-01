@@ -31,8 +31,9 @@ partnership claim.
 
 ## Protocol line
 
-This branch moves the reference to **Ratify Protocol v2** (prerelease,
-`2.0.0a1` built from source; `2.0.0b1` once published). The live deployment at
+This branch moves the reference to **Ratify Protocol v2** on the published
+prerelease `ratify-protocol[protocol-v2]==2.0.0b1`, with the v2 API imported
+from `ratify_protocol.v2`. The live deployment at
 `labs.ratifyprotocol.com/maritime` still runs the Protocol v1 images
 (`ratify-protocol==1.0.0a17`) recorded in [`evidence/`](evidence/); that
 evidence is kept unchanged as dated history. No v2 image has been published
@@ -60,17 +61,16 @@ durable and the checkpoint shares the receiver's process, so this is a
 demonstration verifier, not a production-shaped one. The receiver is a
 connected hosted runtime: the SPEC-v2 single-device offline profile does not
 apply and is not claimed. The v2 result is the local record
-[`evidence/protocol-v2-2026-10-22.md`](evidence/protocol-v2-2026-10-22.md);
+[`evidence/protocol-v2-2026-11-01.md`](evidence/protocol-v2-2026-11-01.md);
 see [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) for the limits.
 
 ![Receiver-owned authorization decision pipeline](docs/architecture/receiver-decision-pipeline.svg)
 
-Run the current gate. Protocol v2 is not on PyPI yet, so first export the
-SDK source from a `ratify-protocol` checkout at the recorded commit (the
-native extension builds with Rust):
+Run the current gate. `uv.lock` pins the published Protocol v2 packages
+(`ratify-protocol` and its `ratify-protocol-native-v2` signing backend, both
+`2.0.0b1`), which install as wheels:
 
 ```bash
-scripts/vendor_ratify_v2.sh /path/to/ratify-protocol
 uv sync --python 3.12
 uv run --python 3.12 pytest
 ```
@@ -117,7 +117,7 @@ deployment:
 python3 scripts/reproduce_gate_locally.py
 ```
 
-It needs Docker, Python 3.10 or newer, and the vendored protocol source. With
+It needs Docker and Python 3.10 or newer. With
 no reviewed v2 image published yet, it builds both images from this checkout,
 issues a fresh principal inside the agent image, runs one receiver and two
 agent containers on a private Docker network, and checks every result against

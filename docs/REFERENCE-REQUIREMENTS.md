@@ -2,7 +2,7 @@
 
 Status: Frozen Phase 1 baseline; deployed pilot; completion pending
 
-Version: 1.3
+Version: 1.5
 
 Date: 2026-08-27
 Owner: Ratify Protocol / Identities.AI, Inc.
@@ -166,10 +166,10 @@ it MUST NOT replace Ratify subject verification.
   audience, and expiry.
 - **ISS-004:** The build MUST use the published Python package
   `ratify-protocol==1.0.0a17`, not an unpublished local SDK checkout.
-  For the Protocol v2 baseline the packages are `ratify-protocol-v2` and
-  `ratify-protocol-native-v2` at `2.0.0b1`. Until they are published, the v2
-  branch builds from a recorded `ratify-protocol` commit exported by
-  `scripts/vendor_ratify_v2.sh`, and ISS-004 is open for v2.
+  For the Protocol v2 baseline the build MUST use the published
+  `ratify-protocol[protocol-v2]==2.0.0b1`, which brings
+  `ratify-protocol-native-v2==2.0.0b1`, and import the v2 API from
+  `ratify_protocol.v2`.
 - **ISS-005:** Demo fixtures MUST be reproducible without publishing private
   production key material.
 
@@ -341,7 +341,7 @@ The console source MUST live at `apps/demo-console/` in this repository. The
 site is deployed through Sites behind the secret-bound Ratify Labs router at
 `labs.ratifyprotocol.com/maritime`; a separate Cloudflare Worker exposes only
 the enumerated, origin-bound scenario API. This is separate code and deployment
-from the managed service's web application.
+from the Ratify product web application.
 
 The agent MUST live at `apps/agent/` and deploy to one Maritime isolated
 runtime. The receiver MUST live at `apps/receiver/` and deploy to a second
@@ -452,6 +452,10 @@ Ratify reference.
 
 ## 15. Baseline change log
 
+- **1.5, 2026-11-01:** ISS-004 for v2 is met: the v2 branch installs the
+  published `ratify-protocol[protocol-v2]==2.0.0b1` from PyPI instead of a
+  vendored SDK build, and the receiver passes its verifier key ID to
+  verification as the beta API requires. The gate results are unchanged.
 - **1.4, 2026-10-22:** Protocol v2 baseline on the `feat/protocol-v2` branch.
   The scope stays the exact `custom:work_order:create`; the category bound
   moves to `com.ratifyprotocol.allowed_values/v1`; the audience bound moves

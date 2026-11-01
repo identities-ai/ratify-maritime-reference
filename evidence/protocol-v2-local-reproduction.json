@@ -2,18 +2,27 @@
   "command": "python3 scripts/reproduce_gate_locally.py",
   "images": {
     "agent": "ratify-maritime-agent:v2-local",
-    "agent_image_id": "sha256:7f1aab0fff8fa1749ea9092c26673d3c9331c1b612bc3d64441568632073ead0",
+    "agent_image_id": "sha256:03568eb46ed2ba8698e9af9e2368dd685d2d21cc3cd158eb8e511a88d4a5398c",
     "built_from_checkout": true,
     "receiver": "ratify-maritime-receiver:v2-local",
-    "receiver_image_id": "sha256:56f2b73aefa3911fd1c41a82d9970e4296e6da64df6e71ebeeab7ec57804a5fd"
+    "receiver_image_id": "sha256:e46baea25efc531e1ced56938a16f3cc255cf34b5ef2cd5600ead82c37ee56da"
   },
   "limits": "Local containers on one machine with fresh issuance. Not a deployment: no Maritime runtime, no public console and no live proxy is involved, and the images are local builds, not published or reviewed digests. The receiver uses the SDK's in-memory reference stores (claim store, receipt log, checkpoint, issuance store and journal), which are not durable and do not form an independent failure domain.",
   "passed": true,
   "platform": "linux/arm64",
   "protocol_line": "v2",
-  "ratify_protocol_revision": "5f1093e07eaf280dfe6499a05036515b0aeaa98c",
-  "recorded_at": "2026-10-22T16:02:56+00:00",
-  "reference_source_revision": "347423d11028b91a2f13fcd6d253e3d915011700",
+  "ratify_protocol_packages": {
+    "agent": {
+      "ratify-protocol": "2.0.0b1",
+      "ratify-protocol-native-v2": "2.0.0b1"
+    },
+    "receiver": {
+      "ratify-protocol": "2.0.0b1",
+      "ratify-protocol-native-v2": "2.0.0b1"
+    }
+  },
+  "recorded_at": "2026-11-01T23:01:10+00:00",
+  "reference_source_revision": "ec00978a966dc7b55016edaa483763c8d3a77a0e",
   "results": {
     "attempts": {
       "primary_own_authority": {

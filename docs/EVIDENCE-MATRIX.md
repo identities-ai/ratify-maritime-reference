@@ -3,10 +3,10 @@
 > **Protocol line.** Everything below this note is Protocol v1 evidence
 > (`ratify-protocol` 1.0.0a16 and 1.0.0a17, August and September 2026) and is
 > kept unchanged as dated history. The `feat/protocol-v2` branch moves the
-> reference to Protocol v2; its evidence is
-> [`../evidence/protocol-v2-2026-10-22.md`](../evidence/protocol-v2-2026-10-22.md).
+> reference to Protocol v2 on the published `2.0.0b1` packages; its evidence
+> is [`../evidence/protocol-v2-2026-11-01.md`](../evidence/protocol-v2-2026-11-01.md).
 > That record is local only. No v2 deployment exists, so no row below is
-> claimed for v2, and ISS-004 (a published package) is open for v2.
+> claimed for v2.
 
 Status: Phase 1 implementation and live pilot deployed; formal reference
 completion remains pending on the explicitly listed review, evidence, and
@@ -206,8 +206,7 @@ review the technical and publication claims, and PUB-002..004.
 - Production dependency audit: 0 vulnerabilities
 - Public URL: `https://labs.ratifyprotocol.com/maritime`
 - Hosting version: 4; served through the secret-bound Ratify Labs route
-- The provider hostname
-  `https://console-origin.example.com` returns HTTP 404 from
+- The hosting provider's own hostname for the site returns HTTP 404 from
   the application boundary; localhost remains available for development
 - The denied scenario displays the executed `$501.00 USD` request beside the
   signed `$500.00 USD` bound and marks the protected handler as not entered
