@@ -101,11 +101,11 @@ jobs:
         run: |
           set -euo pipefail
           declared=$(node -p "require('./package.json').devDependencies.wrangler")
-          test "$declared" = "4.127.1" || {
+          test "$declared" = "4.156.0" || {
             echo "::error::wrangler must be pinned exactly, found '$declared'"; exit 1;
           }
           installed=$(node -p "require('wrangler/package.json').version")
-          test "$installed" = "4.127.1" || {
+          test "$installed" = "4.156.0" || {
             echo "::error::installed wrangler is $installed"; exit 1;
           }
 
