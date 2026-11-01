@@ -7,10 +7,8 @@ through the Ratify Labs Worker. The Labs Worker targets:
 
 `https://ratify-maritime-demo-console-production.chuks-04d.workers.dev`
 
-The former Sites/provider origin remains available only as a rollback reference
-and is not the public path:
-
-`https://console-origin.example.com`
+The former Sites/provider origin is no longer routed. The Worker has no built-in
+hostname: it answers only hostnames listed in `CONSOLE_ALLOWED_HOSTNAMES`.
 
 The production Worker uses the same console build and the production router
 secret. The separate staging Worker remains available for pre-release checks.
@@ -25,9 +23,8 @@ secret. The separate staging Worker remains available for pre-release checks.
 | Console build tests | 2 passed, 0 failed, 0 skipped |
 | Console lint | passed |
 
-The hostname gate is configurable through `CONSOLE_ALLOWED_HOSTNAMES`. When it
-is absent, the existing Sites provider hostname remains the only routed host.
-This preserves the current behavior and keeps rollback available.
+The hostname gate is configured through `CONSOLE_ALLOWED_HOSTNAMES`. When it
+is absent or empty, no hostname is routed and every request returns 404.
 
 ## Wrangler compatibility
 
@@ -37,8 +34,8 @@ from the generated deployment copy while preserving the relative `main` and
 `assets` paths by editing the file in `dist/server`, not by moving it elsewhere.
 
 The deployment must also set `CONSOLE_ALLOWED_HOSTNAMES` explicitly. A generated
-config otherwise emits an empty `vars` object, which would silently fall back to
-the old provider hostname and make a staging Worker return 404.
+config otherwise emits an empty `vars` object, and a Worker with no listed
+hostname returns 404 for every request.
 
 ## Production sequence
 
