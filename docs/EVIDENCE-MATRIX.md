@@ -12,6 +12,18 @@ Status: Phase 1 implementation and live pilot deployed; formal reference
 completion remains pending on the explicitly listed review, evidence, and
 publication items.
 
+Commit IDs: this repository's history was rewritten on 2026-11-01 to remove
+files that did not belong in it, so every commit ID changed. The links in this
+document use the current IDs. Files under `evidence/` keep the revisions that
+were recorded at the time, including the revision labels read from the deployed
+images. Those map as follows:
+
+| Recorded revision | Current commit |
+|---|---|
+| `6f0b60910ef428689dc8910785705ee073d5ac33` (agent image) | `d507cd9c1d0801b2e1a9e6a001cd65bc67e433c3` |
+| `c23bab86fbb09aeeb7f710dcdd71aa8e87493260` (receiver image) | `d51020850514d51ee4da6cb789aecba7c7d0324e` |
+| `b4c2d9ad8eaee44f439f4e4ad7d9a83c5f8ec62c` | none: a pull request commit that was never on `main` |
+
 | Requirement | Evidence | Status |
 |---|---|---|
 | ISS-001..005 | Issuance separation, subject/constraint checks, published package, reproducible fixtures | Complete |
@@ -117,7 +129,7 @@ review the technical and publication claims, and PUB-002..004.
   `ratify-protocol==1.0.0a16`, `pqcrypto==0.3.4`, and
   `langchain-openai==1.6.0`; patched image contains `starlette==1.6.0`
 - Dependency security: GitHub Dependabot reported zero open alerts after
-  security commit `a92bdc1`
+  security commit `7f04d39`
 - Production model status: configuration is implemented and unit-tested; no
   provider call has been executed or claimed
 - Agent-boundary hardening: `.env` files are excluded from the build context;
@@ -146,10 +158,10 @@ review the technical and publication claims, and PUB-002..004.
 
 - Date: 2026-08-23
 - Receiver runtime: `73de1f04-5fe3-43d7-afc7-715206e9241e`
-- Receiver source: `d85eebd9939410fb1d50c1114415916047b3384b`
+- Receiver source: `627839ad8f5f5595aad38a4a42a8c41bff065546`
 - Receiver image: `ghcr.io/identities-ai/ratify-maritime-receiver@sha256:c3670aedef6d12f6ebad87441a2d76249164b4219c0be0bc88abfc37f84ba120`
 - Agent runtime: `526e13bb-5a8c-47fc-94bf-96a0dc417983`
-- Agent source: `f3e173ede141ada02144add553318ca7d73645a0`
+- Agent source: `257bb24401a6aa35e97b53eb60472388f62af8de`
 - Agent image: `ghcr.io/identities-ai/ratify-maritime-agent@sha256:29b93714cd131a1cd4960631b46a64b80f52409d3503c7eff6629a14b2b6a42c`
 - Delegation SHA-256: `6fad6d3d3c7c115be5067321dddf706dae94b97b360ccd7d0ae4e919a4ec3e52`
 - Both health endpoints returned `{"status":"ok"}` after deployment and
@@ -178,12 +190,12 @@ review the technical and publication claims, and PUB-002..004.
   minute, below the agent's thirty-per-minute fallback budget
 - Scope: exact scenario trigger and response projection only; no evidence read
   endpoint, user store, analytics, or console UI
-- Hostile review: all PXY-001..024 and TP-001..021 passed at `a375038`; three
-  low findings were remediated at `218957b`
+- Hostile review: all PXY-001..024 and TP-001..021 passed at `1357abe`; three
+  low findings were remediated at `55e7f5a`
 - Cloudflare identity: deployed by `chuks@identities.ai` to account
   `04d9033b2799de0b157e66c2ad977d43`
 - Custom domain: `https://maritime-api.ratifyprotocol.com/api/scenario`
-- Deployment source: `43a7935`; Worker version:
+- Deployment source: `1ae1b9c`; Worker version:
   `045129f8-fe1f-42ff-8f82-8534989110f7`
 - Public DNS resolves through Cloudflare; the operator observed the prior
   `https://ratify-maritime-demo-proxy.chuks-04d.workers.dev` route returning
@@ -201,7 +213,7 @@ review the technical and publication claims, and PUB-002..004.
 ## Demo console deployment checkpoint
 
 - Date: 2026-08-24
-- Source revision: `8f0e2f9`
+- Source revision: `41c2bf0`
 - Console tests: 2 collected, 2 passed, 0 skipped, 0 failed
 - Production dependency audit: 0 vulnerabilities
 - Public URL: `https://labs.ratifyprotocol.com/maritime`
@@ -218,12 +230,12 @@ review the technical and publication claims, and PUB-002..004.
 ## Final Labs closure
 
 - Date: 2026-08-24
-- Agent image source: `f4d4b00ef4e81e8acc5fca9124da55267c69c544`
+- Agent image source: `1112bf8dc71c97a64a578182058524ce092b18d5`
 - Agent image digest:
   `sha256:8288f4d24ada03281eec88bfab05d2e3b7552e36890a7b5a32c45c21b44f8c85`
 - Scenario Worker version: `b5aae58b-b593-49ad-8994-91537f642c74`
 - Scenario Worker gate: 31 tests, type check and production dry run passed
-- Console hosting version: 9; routed console source: `6b9adf5`
+- Console hosting version: 9; routed console source: `315ad38`
 - The agent response now reports the amount actually dispatched and the maximum
   and currency parsed from the live signed delegation. The proxy projects those
   values and contains no duplicate policy-amount constants.
@@ -246,7 +258,7 @@ review the technical and publication claims, and PUB-002..004.
 ## Live delegation explanation closure
 
 - Date: 2026-08-25
-- Agent source: `ce0494e37e441ce0c8fbaee557a7c3096e6ea4e7`
+- Agent source: `43f9a8b3e1f1dd6ecd1e4e6ef4f7dace653eea31`
 - Agent image:
   `ghcr.io/identities-ai/ratify-maritime-agent@sha256:e769c3ad151d12b5b8ef3f1b9caec3bab97cb2bad3eadbc0179bf5f9c9c376c6`
 - Delegation SHA-256 remains
