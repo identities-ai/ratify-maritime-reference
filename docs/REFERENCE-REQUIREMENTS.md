@@ -2,7 +2,7 @@
 
 Status: Frozen Phase 1 baseline; deployed pilot; completion pending
 
-Version: 1.3
+Version: 1.5
 
 Date: 2026-08-27
 Owner: Ratify Protocol / Identities.AI, Inc.
@@ -166,6 +166,10 @@ it MUST NOT replace Ratify subject verification.
   audience, and expiry.
 - **ISS-004:** The build MUST use the published Python package
   `ratify-protocol==1.0.0a17`, not an unpublished local SDK checkout.
+  For the Protocol v2 baseline the build MUST use the published
+  `ratify-protocol[protocol-v2]==2.0.0b1`, which brings
+  `ratify-protocol-native-v2==2.0.0b1`, and import the v2 API from
+  `ratify_protocol.v2`.
 - **ISS-005:** Demo fixtures MUST be reproducible without publishing private
   production key material.
 
@@ -448,6 +452,21 @@ Ratify reference.
 
 ## 15. Baseline change log
 
+- **1.5, 2026-11-01:** ISS-004 for v2 is met: the v2 branch installs the
+  published `ratify-protocol[protocol-v2]==2.0.0b1` from PyPI instead of a
+  vendored SDK build, and the receiver passes its verifier key ID to
+  verification as the beta API requires. The gate results are unchanged.
+- **1.4, 2026-10-22:** Protocol v2 baseline on the `feat/protocol-v2` branch.
+  The scope stays the exact `custom:work_order:create`; the category bound
+  moves to `com.ratifyprotocol.allowed_values/v1`; the audience bound moves
+  to `ratify.receiver_audience` with `expected_receiver_id`; amounts are
+  signed as integer `max_amount_micros`; revocation is a signed list under a
+  separate status key; every decision passes through a published receipt,
+  the checkpoint, and release. The copied-certificate and borrowed-certificate
+  cases are now rejected before challenge claim and record the v2 error class
+  (`invalid_signature`, `chain_linkage_mismatch`) instead of `invalid`. ISS-004
+  is open for v2 until the v2 packages are published. The v1 deployment and
+  its evidence are unchanged and retained as dated history.
 - **1.3, 2026-08-29:** Upgraded the published Ratify dependency to alpha.17;
   made the public allow-plus-seven adversarial gate and machine-readable live
   artifact mandatory; preserved the existing denial semantics and completion

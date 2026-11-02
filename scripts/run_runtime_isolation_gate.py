@@ -22,7 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
-from ratify_protocol import decode_delegation_cert
+from ratify_protocol.v2 import V2Error
+from ratify_protocol.v2.protocol_v2 import decode_delegation_cert_v2
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 EXPECTATIONS = REPOSITORY / "docs" / "runtime-isolation-expectations.json"
@@ -173,13 +174,13 @@ def main() -> int:
     arguments = parser.parse_args()
 
     try:
-        primary_subject = decode_delegation_cert(
-            arguments.primary_delegation.read_text(encoding="utf-8")
+        primary_subject = decode_delegation_cert_v2(
+            arguments.primary_delegation.read_bytes().strip()
         ).subject_id
-        secondary_subject = decode_delegation_cert(
-            arguments.secondary_delegation.read_text(encoding="utf-8")
+        secondary_subject = decode_delegation_cert_v2(
+            arguments.secondary_delegation.read_bytes().strip()
         ).subject_id
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, V2Error) as error:
         print(f"could not read a delegation: {error}", file=sys.stderr)
         return 3
     if primary_subject == secondary_subject:

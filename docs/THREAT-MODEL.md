@@ -161,6 +161,30 @@ expires. Verification is serialized inside one receiver process; deployment
 must measure queueing before exposing the endpoint. Agent and receiver clocks
 must also be synchronized because Ratify rejects negative challenge age.
 
-Ratify alpha.17 carries the corrected post-quantum dependency bound used by
-this reference. Python remains constrained below 3.14 because the compatible
-post-quantum package publishes wheels only through CPython 3.13.
+Protocol v2 (2026-10-22). The receiver now runs the complete v2 decision
+path: an authenticated challenge from the SDK's issuance helper, bound to the
+exact action, the expected agent's complete public key and the receiver ID;
+verification; a signed receipt; the checkpoint acknowledgement; and release.
+The handler runs only for a released decision whose `allowed()` is true at the
+receiver's clock. Trust is pinned to complete public keys, never to a key ID
+alone. Revocation status is a list signed by a status key that is separate
+from the root key, and an unsigned, unpinned, or stale list never allows.
+
+The v2 Part B stores in this reference are the SDK's in-memory reference
+stores. They are not durable, they do not survive a restart, and the
+checkpoint runs in the receiver's own process, so it is not an independent
+failure domain. A restart therefore forgets consumed challenges, which is
+acceptable for this demonstration only because every pending challenge is
+also forgotten and a new receiver process issues fresh ones. This is not a
+production-shaped verifier, and the reference makes no such claim.
+
+The receiver is a connected hosted runtime. The SPEC-v2 single-device offline
+profile (§7.13) does not apply and is not claimed. A disconnected deployment,
+such as a vessel, would need that profile, and it would need a checkpoint
+component the receiver process, its storage, and its update path cannot roll
+back or forge. A second process, container, or partition on the same host
+never qualifies.
+
+Historical, Protocol v1: Ratify alpha.17 carried the corrected post-quantum
+dependency bound used by the v1 reference. Python remains constrained below
+3.14 in `pyproject.toml`.

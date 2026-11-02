@@ -13,7 +13,6 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
@@ -21,12 +20,13 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from ratify_protocol import (
-    HybridPrivateKey,
-    decode_delegation_cert,
-    sign_both,
-    verify_both,
+from ratify_protocol.v2 import HybridPrivateKey, V2Error
+from ratify_protocol.v2.constraints_v2 import (
+    CONSTRAINT_MAX_AMOUNT,
+    CONSTRAINT_RESOURCE_PATH,
 )
+from ratify_protocol.v2.protocol_v2 import decode_delegation_cert_v2
+from ratify_protocol.v2.signing_v2 import public_key_of
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -38,13 +38,14 @@ from .agent import (
     MCPChallengeProvider,
     build_langchain_agent,
 )
-from .authority import AuthorityFixture
+from .authority import AuthorityFixture, MisheldAuthority
 from .profile import (
     AUDIENCE_CONSTRAINT,
     CATEGORY_CONSTRAINT,
     DEFAULT_CATEGORY,
     DEFAULT_CURRENCY,
     DEFAULT_RESOURCE,
+    MICROS_PER_MINOR,
     SECOND_RESOURCE,
 )
 from .transport import CallerAuthenticator, CarrierDenied
@@ -98,16 +99,13 @@ class AgentSettings:
                 delegation_wire = base64.b64decode(
                     _required("RATIFY_DELEGATION_B64"), validate=True
                 ).decode("utf-8")
+            delegation = _decode_delegation(delegation_wire)
         except (OSError, ValueError, UnicodeDecodeError):
             raise RuntimeError("invalid deployment delegation") from None
-        delegation = decode_delegation_cert(delegation_wire)
         private_key = HybridPrivateKey(
             ed25519=_private_key("RATIFY_AGENT_ED25519_PRIVATE_B64", 32),
             ml_dsa_65=_private_key("RATIFY_AGENT_ML_DSA_65_PRIVATE_B64", 4032),
         )
-        probe = b"ratify-maritime-agent-key-check"
-        if verify_both(probe, sign_both(probe, private_key), delegation.subject_pub_key):
-            raise RuntimeError("agent private key does not match deployment delegation")
         mode = os.environ.get("RATIFY_MODEL_MODE", "deterministic")
         if mode not in {"deterministic", "production"}:
             raise RuntimeError("invalid RATIFY_MODEL_MODE")
@@ -273,7 +271,6 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
         challenge_provider = MCPChallengeProvider(None, "receiver")
         interceptor = AuthorityInterceptor(
             authority=scenario_authority,
-            clock=lambda: int(time.time()),
             challenge_provider=challenge_provider,
             presentation_uploader=HTTPPresentationUploader(
                 http, settings.presentation_url
@@ -317,42 +314,48 @@ async def run_scenario(settings: AgentSettings, scenario: str) -> dict[str, Any]
 
 
 def _delegation_amount_limit(delegation) -> tuple[int, str]:
+    """The signed ceiling in cents, for the public response.
+
+    v2 signs amounts in integer micro-units, so the conversion is exact
+    integer division; a ceiling that is not a whole number of cents is
+    refused rather than rounded.
+    """
     limits = [
-        constraint for constraint in delegation.constraints
-        if constraint.type == "max_amount"
+        constraint for constraint in delegation.constraints or []
+        if constraint.type == CONSTRAINT_MAX_AMOUNT
     ]
-    if len(limits) != 1 or not isinstance(limits[0].currency, str):
+    if (
+        len(limits) != 1
+        or not isinstance(limits[0].currency, str)
+        or type(limits[0].max_amount_micros) is not int
+        or limits[0].max_amount_micros % MICROS_PER_MINOR
+    ):
         raise RuntimeError("deployment delegation has invalid amount constraint")
-    try:
-        minor = Decimal(str(limits[0].max_amount)) * 100
-    except (InvalidOperation, TypeError, ValueError):
-        raise RuntimeError("deployment delegation has invalid amount constraint") from None
-    if minor != minor.to_integral_value() or minor < 0:
-        raise RuntimeError("deployment delegation has invalid amount constraint")
-    return int(minor), limits[0].currency
+    return limits[0].max_amount_micros // MICROS_PER_MINOR, limits[0].currency
 
 
 def _delegation_public_facts(delegation) -> dict[str, str | int]:
     if len(delegation.scope) != 1 or not isinstance(delegation.scope[0], str):
         raise RuntimeError("deployment delegation has invalid scope")
+    constraints = delegation.constraints or []
     resource = [
-        constraint for constraint in delegation.constraints
-        if constraint.type == "resource_path"
+        constraint for constraint in constraints
+        if constraint.type == CONSTRAINT_RESOURCE_PATH
     ]
     category = [
-        constraint for constraint in delegation.constraints
+        constraint.params.get("allowed") for constraint in constraints
         if constraint.type == CATEGORY_CONSTRAINT
+        and isinstance(constraint.params, dict)
     ]
     audience = [
-        constraint for constraint in delegation.constraints
+        constraint.params.get("exact_receiver_ids") for constraint in constraints
         if constraint.type == AUDIENCE_CONSTRAINT
+        and isinstance(constraint.params, dict)
     ]
     if (
         len(resource) != 1 or not isinstance(resource[0].resource_id, str)
-        or len(category) != 1 or not isinstance(category[0].params, dict)
-        or not isinstance(category[0].params.get("allowed"), str)
-        or len(audience) != 1 or not isinstance(audience[0].params, dict)
-        or not isinstance(audience[0].params.get("allowed"), str)
+        or len(category) != 1 or not _single_string(category[0])
+        or len(audience) != 1 or not _single_string(audience[0])
         or not isinstance(delegation.issued_at, int)
         or not isinstance(delegation.expires_at, int)
     ):
@@ -360,8 +363,8 @@ def _delegation_public_facts(delegation) -> dict[str, str | int]:
     return {
         "delegation_scope": delegation.scope[0],
         "delegation_resource": resource[0].resource_id,
-        "delegation_category": category[0].params["allowed"],
-        "delegation_audience": audience[0].params["allowed"],
+        "delegation_category": category[0][0],
+        "delegation_audience": audience[0][0],
         "delegation_issued_at": delegation.issued_at,
         "delegation_expires_at": delegation.expires_at,
     }
@@ -415,9 +418,25 @@ def _dispatched_arguments(
     return transform(dict(arguments)) if transform is not None else dict(arguments)
 
 
+def _single_string(value: object) -> bool:
+    return type(value) is list and len(value) == 1 and type(value[0]) is str
+
+
+def _decode_delegation(wire: object):
+    if not isinstance(wire, str):
+        raise ValueError
+    try:
+        return decode_delegation_cert_v2(wire.encode("utf-8"))
+    except V2Error:
+        raise ValueError from None
+
+
 def _authority_fixture(delegation, private_key: HybridPrivateKey) -> AuthorityFixture:
-    probe = b"ratify-maritime-agent-key-check"
-    if verify_both(probe, sign_both(probe, private_key), delegation.subject_pub_key):
+    try:
+        holder = public_key_of(private_key)
+    except (TypeError, ValueError, V2Error):
+        raise RuntimeError("agent private key is invalid") from None
+    if holder != delegation.subject_pub_key:
         raise RuntimeError("agent private key does not match deployment delegation")
     return AuthorityFixture(
         delegation.issuer_id,
@@ -451,9 +470,9 @@ def _scenario_configuration(
             "wrong_agent_fixture_private_key",
         }:
             raise ValueError
-        expired = decode_delegation_cert(payload["expired"])
-        revoked = decode_delegation_cert(payload["revoked"])
-        wrong_agent = decode_delegation_cert(payload["wrong_agent"])
+        expired = _decode_delegation(payload["expired"])
+        revoked = _decode_delegation(payload["revoked"])
+        wrong_agent = _decode_delegation(payload["wrong_agent"])
         fixture_private = payload["wrong_agent_fixture_private_key"]
         if type(fixture_private) is not dict or set(fixture_private) != {
             "ed25519", "ml_dsa_65"
@@ -473,7 +492,7 @@ def _scenario_configuration(
             # the layer that has to reject it. Constructed directly because
             # _authority_fixture requires the key to match the certificate,
             # which is exactly what this case violates.
-            "copied_certificate": AuthorityFixture(
+            "copied_certificate": MisheldAuthority(
                 primary.root_id,
                 primary.root_public_key,
                 primary.agent_id,
@@ -503,7 +522,7 @@ def _peer_authorities(
     """
     if type(peer_wire) is not str:
         raise ValueError
-    peer = decode_delegation_cert(peer_wire)
+    peer = _decode_delegation(peer_wire)
     if peer.issuer_id != primary.root_id or (
         peer.issuer_pub_key != primary.root_public_key
     ):
@@ -513,7 +532,7 @@ def _peer_authorities(
     return {
         # Declaring the peer's subject. The receiver issued its challenge for
         # this runtime's subject, so the precheck refuses it.
-        "isolation_borrowed_subject": AuthorityFixture(
+        "isolation_borrowed_subject": MisheldAuthority(
             primary.root_id,
             primary.root_public_key,
             peer.subject_id,
@@ -522,7 +541,7 @@ def _peer_authorities(
         ),
         # Declaring this runtime's own subject while presenting the peer's
         # certificate. The precheck passes and verification refuses it.
-        "isolation_borrowed_certificate": AuthorityFixture(
+        "isolation_borrowed_certificate": MisheldAuthority(
             primary.root_id,
             primary.root_public_key,
             primary.agent_id,

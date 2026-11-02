@@ -1,5 +1,5 @@
 {
-  "schema": "ratify-maritime-runtime-isolation-expectations/v1",
+  "schema": "ratify-maritime-runtime-isolation-expectations/v2",
   "description": "The required result for every cross-runtime attempt, including the layer that must decide it. The local two-runtime test and the deployed isolation gate both read this file.",
   "attempts": {
     "primary_own_authority": {
@@ -45,7 +45,7 @@
       "reason": "DENY_VERIFICATION_FAILED",
       "handler_invoked": false,
       "decided_by": "ratify_verification",
-      "verification_status": "invalid"
+      "verification_status": "chain_linkage_mismatch"
     }
   }
 }

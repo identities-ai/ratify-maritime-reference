@@ -24,9 +24,18 @@ result, so a scenario that starts being denied somewhere else fails the gate.
 Six of the nine decisions are reached by Ratify verification: the allow case
 returns `authorized_agent`, the exceeded-limit and wrong-resource cases return
 `constraint_denied`, the expired and revoked cases return their matching
-statuses, and the copied-certificate case returns `invalid`. Those six
-demonstrate the signed delegation, its constraints, and its binding to one
+statuses, and the copied-certificate case returns `invalid_signature`. Those
+six demonstrate the signed delegation, its constraints, and its binding to one
 agent key.
+
+Under Protocol v2 the copied-certificate case is rejected before the
+challenge is claimed: the presentation signature does not verify under the
+declared agent key, so no Protocol receipt exists for it and the recorded
+status is the v2 error class rather than a receipt identity status. The
+published `evidence/adversarial-results.json` is the Protocol v1 deployment of
+2026-09, where the same case recorded `invalid`; it is kept unchanged as dated
+history. The Protocol v2 results are in
+[`../evidence/protocol-v2-2026-11-01.md`](../evidence/protocol-v2-2026-11-01.md).
 
 The remaining three demonstrate receiver-owned binding rather than the
 protocol. The altered-operation and replay cases are stopped by the

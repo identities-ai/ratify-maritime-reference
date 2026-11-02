@@ -12,7 +12,7 @@ import httpx
 from langchain.agents import create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.interceptors import MCPToolCallRequest
-from ratify_protocol import encode_proof_bundle
+from ratify_protocol.v2.protocol_v2 import encode_proof_bundle_v2
 
 from .action import WorkOrder
 from .authority import AuthorityFixture
@@ -27,6 +27,8 @@ BUSINESS_ARGUMENTS = {
 @dataclass(frozen=True)
 class ChallengeMaterial:
     challenge: bytes
+    challenge_at: int
+    verifier_id: str
     session_context: bytes
 
 
@@ -35,14 +37,12 @@ class AuthorityInterceptor:
         self,
         *,
         authority: AuthorityFixture,
-        clock: Callable[[], int],
         challenge_provider: Callable[[dict[str, Any]], Awaitable[ChallengeMaterial]],
         presentation_uploader: Callable[[WorkOrder, str], Awaitable[str]],
         dispatch_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
         replay_dispatch: bool = False,
     ) -> None:
         self._authority = authority
-        self._clock = clock
         self._challenge_provider = challenge_provider
         self._presentation_uploader = presentation_uploader
         self._dispatch_transform = dispatch_transform
@@ -73,10 +73,11 @@ class AuthorityInterceptor:
         mark_from = mark("challenge_duration_ms", mark_from)
         proof = self._authority.present(
             challenge=challenge.challenge,
+            challenge_at=challenge.challenge_at,
+            verifier_id=challenge.verifier_id,
             session_context=challenge.session_context,
-            now=self._clock(),
         )
-        encoded = encode_proof_bundle(proof)
+        encoded = encode_proof_bundle_v2(proof).decode("utf-8")
         mark_from = mark("proof_build_duration_ms", mark_from)
         reference = await self._presentation_uploader(action, encoded)
         mark_from = mark("proof_upload_duration_ms", mark_from)
@@ -124,8 +125,14 @@ class MCPChallengeProvider:
         if payload.get("decision") != "ALLOW":
             raise ValueError(payload.get("reason", "DENY_VERIFICATION_FAILED"))
         try:
+            challenge_at = payload["challenge_at"]
+            verifier_id = payload["verifier_id"]
+            if type(challenge_at) is not int or type(verifier_id) is not str:
+                raise ValueError
             return ChallengeMaterial(
                 base64.b64decode(payload["challenge"], validate=True),
+                challenge_at,
+                verifier_id,
                 base64.b64decode(payload["session_context"], validate=True),
             )
         except (KeyError, TypeError, ValueError):
