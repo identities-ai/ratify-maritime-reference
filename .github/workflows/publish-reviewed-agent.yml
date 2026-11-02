@@ -8,8 +8,8 @@ permissions:
   packages: write
 
 env:
-  SOURCE_REVISION: 6f0b60910ef428689dc8910785705ee073d5ac33
-  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:6f0b609
+  SOURCE_REVISION: d507cd9c1d0801b2e1a9e6a001cd65bc67e433c3
+  IMAGE: ghcr.io/identities-ai/ratify-maritime-agent:d507cd9
 
 jobs:
   publish:
